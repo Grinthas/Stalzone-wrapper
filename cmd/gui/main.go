@@ -32,6 +32,10 @@ var page string
 type target struct {
 	Path      string `json:"path"`
 	Installed bool   `json:"installed"`
+	// Broken — hook есть, но service.exe по записанному пути отсутствует
+	// (антивирус, перенос папки, запуск из архива). Игра при этом не запустится.
+	Broken  bool   `json:"broken"`
+	Service string `json:"service"`
 }
 
 type profileInfo struct {
@@ -57,7 +61,14 @@ func getState() state {
 		Language: s.Language, Profile: s.Profile, Dir: config.Dir(),
 		Targets: []target{}, Profiles: []profileInfo{}}
 	for _, t := range s.Targets {
-		st.Targets = append(st.Targets, target{t, ifeo.Installed(t)})
+		x := target{Path: t, Installed: ifeo.Installed(t)}
+		if x.Installed {
+			x.Service = ifeo.Debugger(t)
+			if _, err := os.Stat(x.Service); err != nil {
+				x.Broken = true
+			}
+		}
+		st.Targets = append(st.Targets, x)
 	}
 	for _, n := range config.ListProfiles() {
 		p, err := config.LoadProfile(n)
@@ -92,7 +103,14 @@ func install(path string) error {
 	if fi, err := os.Stat(path); err != nil || fi.IsDir() {
 		return errors.New("not_found")
 	}
-	if err := ifeo.Install(path, filepath.Join(config.Dir(), "service.exe")); err != nil {
+	service := filepath.Join(config.Dir(), "service.exe")
+	if _, err := os.Stat(service); err != nil {
+		return errors.New("no_service")
+	}
+	if tmp := os.TempDir(); tmp != "" && strings.HasPrefix(strings.ToLower(service), strings.ToLower(tmp)) {
+		return errors.New("from_temp")
+	}
+	if err := ifeo.Install(path, service); err != nil {
 		return err
 	}
 	s := config.LoadSettings()

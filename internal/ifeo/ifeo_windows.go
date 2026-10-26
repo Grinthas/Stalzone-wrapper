@@ -66,3 +66,18 @@ func Installed(target string) bool {
 	_, err := reg("query", filterKey, "/v", "Debugger")
 	return err == nil
 }
+
+// Debugger возвращает путь к service.exe, записанный в hook ("" — hook не найден).
+func Debugger(target string) string {
+	_, filterKey := keyFor(target)
+	out, err := reg("query", filterKey, "/v", "Debugger")
+	if err != nil {
+		return ""
+	}
+	for _, line := range strings.Split(out, "\n") {
+		if _, value, ok := strings.Cut(line, "REG_SZ"); ok && strings.Contains(line, "Debugger") {
+			return strings.Trim(strings.TrimSpace(value), `"`)
+		}
+	}
+	return ""
+}

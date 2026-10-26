@@ -19,7 +19,10 @@ type Info struct {
 }
 
 // Один вызов PowerShell с CIM: быстрее и надёжнее устаревшего wmic.
-const script = `$c = Get-CimInstance Win32_Processor | Select-Object -First 1
+// Вывод принудительно в UTF-8: по умолчанию PowerShell пишет в канал в кодировке
+// консоли (CP866 в русской Windows), и кириллица — «Майкрософт Windows» — ломается.
+const script = `[Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+$c = Get-CimInstance Win32_Processor | Select-Object -First 1
 $g = @(Get-CimInstance Win32_VideoController | ForEach-Object { $_.Name })
 $o = Get-CimInstance Win32_OperatingSystem
 [pscustomobject]@{ cpu = $c.Name.Trim(); cores = [int]$c.NumberOfCores; threads = [int]$c.NumberOfLogicalProcessors; gpus = $g; os = $o.Caption + ' ' + $o.BuildNumber } | ConvertTo-Json -Compress`

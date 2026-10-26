@@ -15,6 +15,7 @@ import (
 	"github.com/grinthas/stalzone-wrapper/internal/jvm"
 	"github.com/grinthas/stalzone-wrapper/internal/sys"
 	"github.com/grinthas/stalzone-wrapper/internal/tunnel"
+	"github.com/grinthas/stalzone-wrapper/internal/tweaks"
 )
 
 func main() {
@@ -47,9 +48,29 @@ func main() {
 		log.Printf("[launch] ошибка: %v", err)
 		os.Exit(1)
 	}
-	st, err := proc.Wait()
-	if err != nil {
-		os.Exit(1)
+	if s.Tweaks.HighPriority {
+		if err := tweaks.RaisePriority(proc.Pid); err != nil {
+			log.Printf("[tweaks] приоритет: %v", err)
+		}
 	}
-	os.Exit(st.ExitCode())
+	restorePower := ""
+	if s.Tweaks.PowerPlan {
+		if prev := tweaks.ActivePowerScheme(); prev != "" && prev != tweaks.HighPerformanceScheme {
+			if err := tweaks.SetPowerScheme(tweaks.HighPerformanceScheme); err != nil {
+				log.Printf("[tweaks] схема питания недоступна: %v", err)
+			} else {
+				log.Printf("[tweaks] схема питания: высокая производительность (вернётся %s)", prev)
+				restorePower = prev
+			}
+		}
+	}
+	st, err := proc.Wait()
+	code := 1
+	if err == nil {
+		code = st.ExitCode()
+	}
+	if restorePower != "" {
+		tweaks.SetPowerScheme(restorePower)
+	}
+	os.Exit(code)
 }

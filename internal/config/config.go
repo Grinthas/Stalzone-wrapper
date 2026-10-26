@@ -20,6 +20,14 @@ type Settings struct {
 	Memory   *Memory  `json:"memory,omitempty"`
 	// Servers — выбранные узлы подключения: регион → host:port. Пусто — выбор игры.
 	Servers map[string]string `json:"servers,omitempty"`
+	Tweaks  Tweaks            `json:"tweaks"`
+}
+
+// Tweaks — системные настройки на время игры.
+type Tweaks struct {
+	HighPriority bool `json:"high_priority"` // приоритет «Выше среднего» для игры
+	PowerPlan    bool `json:"power_plan"`    // схема «Высокая производительность», пока идёт игра
+	GPU          bool `json:"gpu"`           // запуск на дискретной видеокарте
 }
 
 // Memory — настройки очистки памяти (аналог Mem Reduct).
@@ -202,4 +210,69 @@ func Generate(ramGB, cpus int) map[string]Profile {
 	bal.HeapSizeGB = heap(0.4, 6)
 	high.HeapSizeGB, high.MaxGCPauseMillis = heap(0.5, 10), 100
 	return map[string]Profile{"low": low, "balanced": bal, "high": high}
+}
+
+// AutoProfile подбирает профиль под конкретный компьютер и возвращает
+// пояснения к выбору.
+func AutoProfile(ramGB, cores, threads int) (Profile, []string) {
+	var notes []string
+	if cores < 1 {
+		cores = max(1, threads/2)
+	}
+
+	// Куча: игре нужно 3–8 ГБ; остальное оставляем системе, браузеру и Discord.
+	heap := 2
+	switch {
+	case ramGB <= 6:
+		heap = 2
+		notes = append(notes, "Мало памяти: куча 2 ГБ. Закройте браузер перед игрой и включите файл подкачки.")
+	case ramGB <= 8:
+		heap = 3
+		notes = append(notes, "8 ГБ ОЗУ: куча 3 ГБ, файл подкачки обязателен.")
+	case ramGB <= 12:
+		heap = 4
+	case ramGB <= 16:
+		heap = 6
+	case ramGB <= 32:
+		heap = 8
+	default:
+		heap = 10
+	}
+
+	// Потоки GC: по числу физических ядер, но не больше 8, и одно-два ядра оставляем игре.
+	parallel := min(8, max(2, cores))
+	if cores <= 4 {
+		parallel = max(2, cores-1)
+		notes = append(notes, fmt.Sprintf("%d ядра: GC использует %d потока, чтобы не отнимать ядро у игры.", cores, parallel))
+	}
+	conc := max(1, parallel/4)
+
+	p := Profile{
+		HeapSizeGB: heap, MetaspaceMB: 512, G1HeapRegionSizeMB: 8,
+		G1NewSizePercent: 30, G1MaxNewSizePercent: 40, G1ReservePercent: 20, G1HeapWastePercent: 5,
+		G1MixedGCCountTarget: 4, InitiatingHeapOccupancy: 15, G1MixedGCLiveThreshold: 90,
+		G1RSetUpdatingPauseTime: 5, SurvivorRatio: 32, MaxTenuringThreshold: 1,
+		ParallelGCThreads: parallel, ConcGCThreads: conc,
+	}
+	// Короткие паузы GC стоят процессорного времени — на слабых CPU даём больше запаса.
+	switch {
+	case cores <= 4:
+		p.MaxGCPauseMillis = 200
+	case cores <= 6:
+		p.MaxGCPauseMillis = 150
+	default:
+		p.MaxGCPauseMillis = 100
+	}
+	// Предварительное выделение памяти ускоряет игру, но удлиняет запуск и занимает ОЗУ сразу.
+	p.PreTouch = ramGB >= 16
+	if p.PreTouch {
+		notes = append(notes, "Достаточно памяти: включено предварительное выделение кучи (меньше фризов в бою).")
+	}
+	if ramGB >= 12 {
+		p.ReservedCodeCacheSizeMB = 400
+	} else {
+		p.ReservedCodeCacheSizeMB = 256
+	}
+	notes = append(notes, fmt.Sprintf("Куча %d ГБ, потоков GC %d/%d, цель паузы %d мс.", heap, parallel, conc, p.MaxGCPauseMillis))
+	return p, notes
 }

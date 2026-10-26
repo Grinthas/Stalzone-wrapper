@@ -29,7 +29,7 @@ jobs:
         run: |
           test -z "$(gofmt -l .)"
           GOOS=windows go vet ./...
-          go test ./internal/jvm/
+          go test ./internal/jvm/ ./internal/tunnel/ ./internal/config/
 
       - name: Build
         env:

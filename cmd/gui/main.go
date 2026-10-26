@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 	"unsafe"
@@ -17,10 +18,12 @@ import (
 	"github.com/jchv/go-webview2"
 
 	"github.com/grinthas/stalzone-wrapper/internal/config"
+	"github.com/grinthas/stalzone-wrapper/internal/hw"
 	"github.com/grinthas/stalzone-wrapper/internal/ifeo"
 	"github.com/grinthas/stalzone-wrapper/internal/memclean"
 	"github.com/grinthas/stalzone-wrapper/internal/sys"
 	"github.com/grinthas/stalzone-wrapper/internal/tunnel"
+	"github.com/grinthas/stalzone-wrapper/internal/tweaks"
 )
 
 //go:embed index.html
@@ -99,6 +102,9 @@ func install(path string) error {
 	}
 	if !known {
 		s.Targets = append(s.Targets, path)
+	}
+	if s.Tweaks.GPU {
+		tweaks.SetHighPerformanceGPU(path, true)
 	}
 	if err := config.SaveSettings(s); err != nil {
 		return err
@@ -198,6 +204,30 @@ func main() {
 	w.Bind("memClean", func() memclean.Result { return cleanMemory() })
 	go autoClean(w)
 
+	w.Bind("hwInfo", hardware)
+	w.Bind("autoProfile", func() ([]string, error) {
+		h := hardware()
+		p, notes := config.AutoProfile(h.RAMGB, h.Cores, h.Threads)
+		if err := config.SaveProfile("auto", p); err != nil {
+			return nil, err
+		}
+		s := config.LoadSettings()
+		s.Profile = "auto"
+		return notes, config.SaveSettings(s)
+	})
+	w.Bind("getTweaks", func() config.Tweaks { return config.LoadSettings().Tweaks })
+	w.Bind("setTweaks", func(t config.Tweaks) error {
+		s := config.LoadSettings()
+		if t.GPU != s.Tweaks.GPU {
+			for _, target := range s.Targets {
+				if err := tweaks.SetHighPerformanceGPU(target, t.GPU); err != nil {
+					return err
+				}
+			}
+		}
+		s.Tweaks = t
+		return config.SaveSettings(s)
+	})
 	w.Bind("serverRegions", func() map[string]any {
 		return map[string]any{"regions": tunnel.Regions, "selected": config.LoadSettings().Servers}
 	})
@@ -221,6 +251,17 @@ func main() {
 
 	w.SetHtml(page)
 	w.Run()
+}
+
+var (
+	hwOnce sync.Once
+	hwInfo hw.Info
+)
+
+// hardware определяет железо один раз за запуск (PowerShell отвечает ~1 с).
+func hardware() hw.Info {
+	hwOnce.Do(func() { hwInfo = hw.Detect() })
+	return hwInfo
 }
 
 func cleanMemory() memclean.Result {

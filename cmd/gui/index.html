@@ -106,6 +106,9 @@
     <button data-tab="profiles">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
       <span data-t="tab.profiles"></span></button>
+    <button data-tab="optimize">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="7" y="7" width="10" height="10" rx="1"/><path d="M9 3v4M15 3v4M9 17v4M15 17v4M3 9h4M3 15h4M17 9h4M17 15h4"/></svg>
+      <span data-t="tab.optimize"></span></button>
     <button data-tab="servers">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
       <span data-t="tab.servers"></span></button>
@@ -119,7 +122,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
       <span data-t="tab.settings"></span></button>
   </nav>
-  <div class="side-foot">v1.2.0</div>
+  <div class="side-foot">v1.3.0</div>
 </aside>
 
 <main>
@@ -161,6 +164,27 @@
       <button class="btn" onclick="openFolder('configs')" data-t="profiles.folder"></button>
     </div>
     <div class="profiles" id="profileList"></div>
+  </section>
+
+  <section id="optimize" hidden>
+    <h1 data-t="opt.title"></h1>
+    <div class="sub" data-t="opt.sub"></div>
+    <div class="card">
+      <h2 data-t="opt.pc"></h2>
+      <div id="hwBox" class="empty" data-t="opt.detecting"></div>
+    </div>
+    <div class="card">
+      <h2 data-t="opt.profile"></h2>
+      <div class="sub" style="margin:0 0 12px" data-t="opt.profile.d"></div>
+      <button class="btn primary" id="autoBtn" onclick="doAuto()" data-t="opt.profile.btn"></button>
+      <ul id="autoNotes" style="margin:12px 0 0;padding-left:20px;color:var(--muted)"></ul>
+    </div>
+    <div class="card">
+      <h2 data-t="opt.system"></h2>
+      <label class="opt"><input type="checkbox" id="tPriority"><div><span data-t="opt.prio"></span><small data-t="opt.prio.d"></small></div></label>
+      <label class="opt"><input type="checkbox" id="tPower"><div><span data-t="opt.power"></span><small data-t="opt.power.d"></small></div></label>
+      <label class="opt"><input type="checkbox" id="tGpu"><div><span data-t="opt.gpu"></span><small data-t="opt.gpu.d"></small></div></label>
+    </div>
   </section>
 
   <section id="servers" hidden>
@@ -273,6 +297,13 @@ const I18N = {
     "mem.fc": "Системный файловый кэш", "mem.fc.d": "Сбрасывает кэш файлов Windows.",
     "mem.auto": "Автоочистка", "mem.auto.on": "Очищать автоматически", "mem.auto.d": "Проверка каждые 15 секунд, пока открыто окно программы; не чаще раза в минуту.",
     "mem.threshold": "Когда занято больше",
+    "tab.optimize": "Оптимизация", "opt.title": "Оптимизация под ваш ПК", "opt.sub": "Wrapper определяет процессор, память и видеокарту и подбирает настройки игры.",
+    "opt.pc": "Ваш компьютер", "opt.detecting": "Определяю характеристики…", "opt.cpu": "Процессор", "opt.cores": "Ядра / потоки", "opt.ram": "Память", "opt.gpus": "Видеокарта", "opt.os": "Система",
+    "opt.profile": "Профиль под этот ПК", "opt.profile.d": "Создаёт профиль «auto»: размер кучи, потоки сборщика мусора и паузы под ваше железо, и делает его активным.",
+    "opt.profile.btn": "Создать и выбрать", "opt.profile.done": "Профиль «auto» создан и выбран.",
+    "opt.system": "Система на время игры", "opt.prio": "Повышенный приоритет игры", "opt.prio.d": "«Выше среднего»: Windows отдаёт игре процессор раньше фоновых программ.",
+    "opt.power": "Схема питания «Высокая производительность»", "opt.power.d": "Включается при запуске игры и возвращается после выхода. На некоторых ноутбуках схемы нет — тогда пропускается.",
+    "opt.gpu": "Дискретная видеокарта", "opt.gpu.d": "Для ноутбуков с двумя видеокартами: Java игры запускается на мощной.", "opt.saved": "Сохранено. Применится при следующем запуске игры.",
     "tab.servers": "Сервер", "srv.title": "Сервер подключения", "srv.sub": "Выберите узел (туннель), через который игра подключается к серверам региона. Применяется при следующем запуске игры.",
     "srv.load": "Загрузить узлы", "srv.probe": "Проверить пинг", "srv.probing": "Проверка…", "srv.best": "Выбрать лучший", "srv.reset": "Выбор игры",
     "srv.current.auto": "Сейчас: узел выбирает игра", "srv.current": "Сейчас: %s", "srv.loading": "Загружаю список узлов…",
@@ -312,6 +343,13 @@ const I18N = {
     "mem.fc": "System file cache", "mem.fc.d": "Flushes the Windows file cache.",
     "mem.auto": "Auto clean", "mem.auto.on": "Clean automatically", "mem.auto.d": "Checked every 15 seconds while the program window is open; at most once a minute.",
     "mem.threshold": "When usage exceeds",
+    "tab.optimize": "Optimize", "opt.title": "Optimization for your PC", "opt.sub": "The wrapper detects your CPU, memory and GPU and tunes the game for them.",
+    "opt.pc": "Your computer", "opt.detecting": "Detecting hardware…", "opt.cpu": "CPU", "opt.cores": "Cores / threads", "opt.ram": "Memory", "opt.gpus": "GPU", "opt.os": "System",
+    "opt.profile": "Profile for this PC", "opt.profile.d": "Creates the \"auto\" profile: heap size, GC threads and pause target for your hardware, and makes it active.",
+    "opt.profile.btn": "Create and select", "opt.profile.done": "Profile \"auto\" created and selected.",
+    "opt.system": "System while playing", "opt.prio": "Higher game priority", "opt.prio.d": "\"Above normal\": Windows gives the game CPU time before background programs.",
+    "opt.power": "\"High performance\" power plan", "opt.power.d": "Enabled when the game starts and restored after it exits. Skipped if the plan is missing on some laptops.",
+    "opt.gpu": "Discrete GPU", "opt.gpu.d": "For laptops with two GPUs: the game's Java runs on the powerful one.", "opt.saved": "Saved. Applies on the next game launch.",
     "tab.servers": "Server", "srv.title": "Connection server", "srv.sub": "Choose the node (tunnel) the game uses to reach the region's servers. Applies on the next game launch.",
     "srv.load": "Load nodes", "srv.probe": "Measure ping", "srv.probing": "Measuring…", "srv.best": "Pick best", "srv.reset": "Game's choice",
     "srv.current.auto": "Now: the game picks the node", "srv.current": "Now: %s", "srv.loading": "Loading node list…",
@@ -443,6 +481,37 @@ async function doMemClean() {
   btn.disabled = false; btn.textContent = t("mem.clean");
   loadMem();
 }
+let hwLoaded = false;
+async function initOptimize() {
+  const tw = await window.getTweaks();
+  $("#tPriority").checked = tw.high_priority; $("#tPower").checked = tw.power_plan; $("#tGpu").checked = tw.gpu;
+  if (hwLoaded) return;
+  const h = await window.hwInfo();
+  hwLoaded = true;
+  const rows = [
+    ["opt.cpu", h.cpu || "—"], ["opt.cores", `${h.cores} / ${h.threads}`], ["opt.ram", `${h.ramGB} GB`],
+    ["opt.gpus", (h.gpus || []).join(", ") || "—"], ["opt.os", h.os || "—"]
+  ];
+  $("#hwBox").className = "";
+  $("#hwBox").innerHTML = rows.map(([k, v]) =>
+    `<div class="row" style="padding:5px 0"><span style="color:var(--muted);width:150px">${t(k)}</span><span class="grow">${esc(v)}</span></div>`).join("");
+}
+async function doAuto() {
+  const btn = $("#autoBtn"); btn.disabled = true;
+  try {
+    const notes = await window.autoProfile();
+    $("#autoNotes").innerHTML = notes.map(n => `<li>${esc(n)}</li>`).join("");
+    toast(t("opt.profile.done")); refresh();
+  } catch (e) { fail(e); }
+  btn.disabled = false;
+}
+["#tPriority", "#tPower", "#tGpu"].forEach(id => $(id).addEventListener("change", async () => {
+  try {
+    await window.setTweaks({ high_priority: $("#tPriority").checked, power_plan: $("#tPower").checked, gpu: $("#tGpu").checked });
+    toast(t("opt.saved"));
+  } catch (e) { fail(e); }
+}));
+
 let srvRegion = "ru", srvData = null, srvPools = [], srvResults = {};
 async function initServers() {
   srvData = await window.serverRegions();
@@ -509,6 +578,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   if (b.dataset.tab === "log") loadLog();
   clearInterval(memTimer);
   if (b.dataset.tab === "servers") initServers();
+  if (b.dataset.tab === "optimize") initOptimize();
   if (b.dataset.tab === "memory") { loadMem(); loadMemSettings(); memTimer = setInterval(loadMem, 2000); }
 });
 document.querySelectorAll("#langSeg button").forEach(b => b.onclick = async () => {

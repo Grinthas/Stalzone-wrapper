@@ -13,8 +13,9 @@ import (
 
 // Settings — состояние установки, лежит рядом с exe в wrapper.json.
 type Settings struct {
-	// Targets — полные пути к java.exe/javaw.exe игры, на которые ставится hook.
-	Targets  []string `json:"targets"`
+	// Targets — пути java.exe, на которые ставили hook версии до 1.4.0;
+	// хранится только для их удаления при переустановке.
+	Targets  []string `json:"targets,omitempty"`
 	Profile  string   `json:"profile"`
 	Language string   `json:"language"`
 	Memory   *Memory  `json:"memory,omitempty"`

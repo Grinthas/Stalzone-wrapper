@@ -1,0 +1,284 @@
+// Package process запускает игру через NtCreateUserProcess с флагом
+// PS_ATTRIBUTE_IFEO_SKIP_DEBUGGER: так Windows не вызывает наш же hook повторно,
+// и игра стартует обычным процессом (без отладочных трюков), с правильной
+// рабочей папкой.
+//
+// Код адаптирован из MIT-проекта EXBO-Community/stalcraft-jvm-optimization
+// (internal/process/process.go).
+package process
+
+import (
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"syscall"
+	"unsafe"
+)
+
+var (
+	ntdll    = syscall.NewLazyDLL("ntdll.dll")
+	kernel32 = syscall.NewLazyDLL("kernel32.dll")
+)
+
+var (
+	procRtlCreateProcessParametersEx = ntdll.NewProc("RtlCreateProcessParametersEx")
+	procNtCreateUserProcess          = ntdll.NewProc("NtCreateUserProcess")
+	procRtlDestroyProcessParameters  = ntdll.NewProc("RtlDestroyProcessParameters")
+
+	procGetExitCodeProcess = kernel32.NewProc("GetExitCodeProcess")
+)
+
+const (
+	psAttrImageName                  = 0x00020005
+	psAttrClientID                   = 0x00010003
+	rtlUserProcParamsNormalized      = 0x01
+	ifeoSkipDebugger                 = 0x04
+	processCreateFlagsInheritHandles = 0x04
+	processAllAccess                 = 0x001FFFFF
+	threadAllAccess                  = 0x001FFFFF
+)
+
+// Process is a handle pair produced by Start. Always Close it.
+type Process struct {
+	Handle syscall.Handle
+	Thread syscall.Handle
+	PID    uint32
+}
+
+type unicodeString struct {
+	Length        uint16
+	MaximumLength uint16
+	_             [4]byte
+	Buffer        *uint16
+}
+
+type clientID struct {
+	UniqueProcess uintptr
+	UniqueThread  uintptr
+}
+
+type psAttribute struct {
+	Attribute    uintptr
+	Size         uintptr
+	Value        uintptr
+	ReturnLength uintptr
+}
+
+type psAttributeList2 struct {
+	TotalLength uintptr
+	Attributes  [2]psAttribute
+}
+
+type psCreateInfo [0x58]byte
+
+func newUnicodeString(s string) (unicodeString, []uint16, error) {
+	buf, err := syscall.UTF16FromString(s)
+	if err != nil {
+		return unicodeString{}, nil, fmt.Errorf("encode %q: %w", s, err)
+	}
+	return unicodeString{
+		Length:        uint16((len(buf) - 1) * 2),
+		MaximumLength: uint16(len(buf) * 2),
+		Buffer:        &buf[0],
+	}, buf, nil
+}
+
+func envBlock() []uint16 {
+	var block []uint16
+	for _, e := range os.Environ() {
+		s, err := syscall.UTF16FromString(e)
+		if err != nil {
+			continue
+		}
+		block = append(block, s...)
+	}
+	return append(block, 0)
+}
+
+func buildCmdLine(exe string, args []string) string {
+	parts := make([]string, 0, 1+len(args))
+	parts = append(parts, `"`+exe+`"`)
+	for _, a := range args {
+		if strings.ContainsAny(a, ` "`) {
+			parts = append(parts, `"`+a+`"`)
+		} else {
+			parts = append(parts, a)
+		}
+	}
+	return strings.Join(parts, " ")
+}
+
+// extractGameDir derives the working directory from --gameDir or
+// -Djava.library.path so the child process sees its resources.
+func extractGameDir(exePath string, args []string) string {
+	for i, a := range args {
+		if a == "--gameDir" && i+1 < len(args) {
+			return args[i+1]
+		}
+	}
+	for _, a := range args {
+		if strings.HasPrefix(a, "-Djava.library.path=") {
+			libPath := filepath.ToSlash(strings.TrimPrefix(a, "-Djava.library.path="))
+			exeDir := filepath.ToSlash(filepath.Dir(exePath))
+			if strings.HasSuffix(exeDir, libPath) {
+				return filepath.FromSlash(exeDir[:len(exeDir)-len(libPath)])
+			}
+		}
+	}
+	return ""
+}
+
+// resolveWorkDir returns the absolute working directory for the spawned
+// game process: an explicit --gameDir / -Djava.library.path value when
+// present, or the directory containing the target executable as a
+// fallback.
+func resolveWorkDir(exePath string, args []string) string {
+	abs, err := filepath.Abs(exePath)
+	if err != nil {
+		abs = exePath
+	}
+	dir := extractGameDir(abs, args)
+	if dir == "" {
+		dir = filepath.Dir(abs)
+	}
+	if absDir, err := filepath.Abs(dir); err == nil {
+		return absDir
+	}
+	return dir
+}
+
+// Start spawns exePath with args via NtCreateUserProcess.
+// The resulting Process must be closed by the caller.
+func Start(exePath string, args []string) (*Process, error) {
+	absPath, err := filepath.Abs(exePath)
+	if err != nil {
+		return nil, fmt.Errorf("resolve %q: %w", exePath, err)
+	}
+	ntPath := `\??\` + absPath
+	cmdLine := buildCmdLine(absPath, args)
+
+	workDir := resolveWorkDir(exePath, args)
+
+	imgUS, imgBuf, err := newUnicodeString(absPath)
+	if err != nil {
+		return nil, err
+	}
+	cmdUS, cmdBuf, err := newUnicodeString(cmdLine)
+	if err != nil {
+		return nil, err
+	}
+	wdUS, wdBuf, err := newUnicodeString(workDir)
+	if err != nil {
+		return nil, err
+	}
+	ntUS, ntBuf, err := newUnicodeString(ntPath)
+	if err != nil {
+		return nil, err
+	}
+	desktopUS, desktopBuf, err := newUnicodeString(`WinSta0\Default`)
+	if err != nil {
+		return nil, err
+	}
+	env := envBlock()
+
+	var params uintptr
+	status, _, _ := procRtlCreateProcessParametersEx.Call(
+		uintptr(unsafe.Pointer(&params)),
+		uintptr(unsafe.Pointer(&imgUS)),
+		0,
+		uintptr(unsafe.Pointer(&wdUS)),
+		uintptr(unsafe.Pointer(&cmdUS)),
+		uintptr(unsafe.Pointer(&env[0])),
+		0,
+		uintptr(unsafe.Pointer(&desktopUS)),
+		0, 0,
+		rtlUserProcParamsNormalized,
+	)
+	if status != 0 {
+		return nil, fmt.Errorf("RtlCreateProcessParametersEx: NTSTATUS 0x%08x", status)
+	}
+	defer procRtlDestroyProcessParameters.Call(params)
+
+	var ci psCreateInfo
+	*(*uintptr)(unsafe.Pointer(&ci[0])) = 0x58
+	*(*uint32)(unsafe.Pointer(&ci[0x10])) = ifeoSkipDebugger
+
+	var cid clientID
+	al := psAttributeList2{
+		TotalLength: unsafe.Sizeof(psAttributeList2{}),
+		Attributes: [2]psAttribute{
+			{
+				Attribute: psAttrImageName,
+				Size:      uintptr(ntUS.Length),
+				Value:     uintptr(unsafe.Pointer(ntUS.Buffer)),
+			},
+			{
+				Attribute: psAttrClientID,
+				Size:      unsafe.Sizeof(cid),
+				Value:     uintptr(unsafe.Pointer(&cid)),
+			},
+		},
+	}
+
+	var hProcess, hThread syscall.Handle
+	status, _, _ = procNtCreateUserProcess.Call(
+		uintptr(unsafe.Pointer(&hProcess)),
+		uintptr(unsafe.Pointer(&hThread)),
+		processAllAccess, threadAllAccess,
+		0, 0,
+		processCreateFlagsInheritHandles,
+		0,
+		params,
+		uintptr(unsafe.Pointer(&ci)),
+		uintptr(unsafe.Pointer(&al)),
+	)
+
+	// Keep the UTF-16 buffers alive across the syscall — NtCreateUserProcess
+	// reads the fields referenced by params/attribute list.
+	runtime.KeepAlive(imgBuf)
+	runtime.KeepAlive(cmdBuf)
+	runtime.KeepAlive(wdBuf)
+	runtime.KeepAlive(ntBuf)
+	runtime.KeepAlive(env)
+	runtime.KeepAlive(desktopBuf)
+	runtime.KeepAlive(&cid)
+
+	if status != 0 {
+		return nil, fmt.Errorf("NtCreateUserProcess: NTSTATUS 0x%08x", status)
+	}
+
+	return &Process{
+		Handle: hProcess,
+		Thread: hThread,
+		PID:    uint32(cid.UniqueProcess),
+	}, nil
+}
+
+// Close releases the process and thread handles.
+func (p *Process) Close() {
+	if p == nil {
+		return
+	}
+	if p.Handle != 0 {
+		syscall.CloseHandle(p.Handle)
+		p.Handle = 0
+	}
+	if p.Thread != 0 {
+		syscall.CloseHandle(p.Thread)
+		p.Thread = 0
+	}
+}
+
+// Wait ждёт завершения процесса и возвращает его код выхода.
+func (p *Process) Wait() (int, error) {
+	if _, err := syscall.WaitForSingleObject(p.Handle, syscall.INFINITE); err != nil {
+		return 1, fmt.Errorf("WaitForSingleObject: %w", err)
+	}
+	var code uint32
+	if r, _, err := procGetExitCodeProcess.Call(uintptr(p.Handle), uintptr(unsafe.Pointer(&code))); r == 0 {
+		return 1, fmt.Errorf("GetExitCodeProcess: %w", err)
+	}
+	return int(code), nil
+}

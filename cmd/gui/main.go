@@ -23,14 +23,14 @@ import (
 	"github.com/grinthas/stalzone-wrapper/internal/memclean"
 	"github.com/grinthas/stalzone-wrapper/internal/sys"
 	"github.com/grinthas/stalzone-wrapper/internal/tunnel"
-	"github.com/grinthas/stalzone-wrapper/internal/tweaks"
 )
 
 //go:embed index.html
 var page string
 
 type target struct {
-	Path      string `json:"path"`
+	Exe       string `json:"exe"`
+	Title     string `json:"title"`
 	Installed bool   `json:"installed"`
 	// Broken — hook есть, но service.exe по записанному пути отсутствует
 	// (антивирус, перенос папки, запуск из архива). Игра при этом не запустится.
@@ -60,10 +60,10 @@ func getState() state {
 	st := state{Admin: sys.IsAdmin(), RAM: sys.TotalRAMGB(), CPUs: runtime.NumCPU(),
 		Language: s.Language, Profile: s.Profile, Dir: config.Dir(),
 		Targets: []target{}, Profiles: []profileInfo{}}
-	for _, t := range s.Targets {
-		x := target{Path: t, Installed: ifeo.Installed(t)}
+	for _, t := range ifeo.Targets {
+		x := target{Exe: t.Exe, Title: t.Title, Service: ifeo.Debugger(t.Exe)}
+		x.Installed = x.Service != ""
 		if x.Installed {
-			x.Service = ifeo.Debugger(t)
 			if _, err := os.Stat(x.Service); err != nil {
 				x.Broken = true
 			}
@@ -95,13 +95,11 @@ func generate() error {
 	return nil
 }
 
-func install(path string) error {
+// install ставит hook на exe игры (stalzone.exe и stalzonew.exe), как
+// EXBO-Community/stalcraft-jvm-optimization, и убирает hook старых версий с java.exe.
+func install() error {
 	if !sys.IsAdmin() {
 		return errNeedAdmin
-	}
-	path, _ = filepath.Abs(strings.Trim(strings.TrimSpace(path), `"`))
-	if fi, err := os.Stat(path); err != nil || fi.IsDir() {
-		return errors.New("not_found")
 	}
 	service := filepath.Join(config.Dir(), "service.exe")
 	if _, err := os.Stat(service); err != nil {
@@ -110,19 +108,11 @@ func install(path string) error {
 	if tmp := os.TempDir(); tmp != "" && strings.HasPrefix(strings.ToLower(service), strings.ToLower(tmp)) {
 		return errors.New("from_temp")
 	}
-	if err := ifeo.Install(path, service); err != nil {
-		return err
-	}
 	s := config.LoadSettings()
-	known := false
-	for _, t := range s.Targets {
-		known = known || strings.EqualFold(t, path)
-	}
-	if !known {
-		s.Targets = append(s.Targets, path)
-	}
-	if s.Tweaks.GPU {
-		tweaks.SetHighPerformanceGPU(path, true)
+	ifeo.RemoveLegacy(s.Targets)
+	s.Targets = nil
+	if err := ifeo.Install(service); err != nil {
+		return err
 	}
 	if err := config.SaveSettings(s); err != nil {
 		return err
@@ -133,21 +123,16 @@ func install(path string) error {
 	return nil
 }
 
-func uninstall(path string) error {
+func uninstall() error {
 	if !sys.IsAdmin() {
 		return errNeedAdmin
 	}
-	if err := ifeo.Uninstall(path); err != nil {
+	s := config.LoadSettings()
+	ifeo.RemoveLegacy(s.Targets)
+	s.Targets = nil
+	if err := ifeo.Uninstall(); err != nil {
 		return err
 	}
-	s := config.LoadSettings()
-	var rest []string
-	for _, t := range s.Targets {
-		if !strings.EqualFold(t, path) {
-			rest = append(rest, t)
-		}
-	}
-	s.Targets = rest
 	return config.SaveSettings(s)
 }
 
@@ -172,7 +157,6 @@ func main() {
 	w.Bind("install", install)
 	w.Bind("uninstall", uninstall)
 	w.Bind("generate", generate)
-	w.Bind("pickJava", func(title string) string { return sys.OpenFileDialog(uintptr(w.Window()), title) })
 	w.Bind("selectProfile", func(name string) error {
 		if _, err := config.LoadProfile(name); err != nil {
 			return err
@@ -231,13 +215,6 @@ func main() {
 	w.Bind("getTweaks", func() config.Tweaks { return config.LoadSettings().Tweaks })
 	w.Bind("setTweaks", func(t config.Tweaks) error {
 		s := config.LoadSettings()
-		if t.GPU != s.Tweaks.GPU {
-			for _, target := range s.Targets {
-				if err := tweaks.SetHighPerformanceGPU(target, t.GPU); err != nil {
-					return err
-				}
-			}
-		}
 		s.Tweaks = t
 		return config.SaveSettings(s)
 	})
@@ -283,7 +260,7 @@ func cleanMemory() memclean.Result {
 	return memclean.Clean(memclean.Options{
 		WorkingSets: m.WorkingSets, StandbyList: m.StandbyList,
 		ModifiedList: m.ModifiedList, FileCache: m.FileCache,
-	}, s.Targets) // игру не трогаем, чтобы не было подтормаживаний
+	}, []string{"stalzone.exe", "stalzonew.exe"}) // игру не трогаем, чтобы не было подтормаживаний
 }
 
 // autoClean раз в 15 секунд проверяет загрузку памяти и чистит её при превышении порога,

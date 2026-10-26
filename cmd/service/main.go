@@ -15,6 +15,7 @@ import (
 	"github.com/grinthas/stalzone-wrapper/internal/config"
 	"github.com/grinthas/stalzone-wrapper/internal/hw"
 	"github.com/grinthas/stalzone-wrapper/internal/jvm"
+	"github.com/grinthas/stalzone-wrapper/internal/process"
 	"github.com/grinthas/stalzone-wrapper/internal/sys"
 	"github.com/grinthas/stalzone-wrapper/internal/tunnel"
 	"github.com/grinthas/stalzone-wrapper/internal/tweaks"
@@ -22,7 +23,7 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		fmt.Println("service.exe запускается Windows автоматически; используйте cli.exe")
+		fmt.Println("service.exe запускается Windows автоматически; используйте «Stalzone Wrapper.exe»")
 		os.Exit(2)
 	}
 	if f, err := os.OpenFile(filepath.Join(config.Dir(), "wrapper.log"),
@@ -48,13 +49,15 @@ func main() {
 	}
 	log.Printf("[launch] %s %v", target, args)
 
-	proc, err := sys.StartBypassingIFEO(target, args)
+	// Настройка видеокарты привязана к пути exe игры, поэтому применяется здесь, при запуске.
+	tweaks.SetHighPerformanceGPU(target, s.Tweaks.GPU)
+	proc, err := process.Start(target, args)
 	if err != nil {
 		log.Printf("[launch] ошибка: %v", err)
 		os.Exit(1)
 	}
 	if s.Tweaks.HighPriority {
-		if err := tweaks.RaisePriority(proc.Pid); err != nil {
+		if err := tweaks.RaisePriority(int(proc.PID)); err != nil {
 			log.Printf("[tweaks] приоритет: %v", err)
 		}
 	}
@@ -69,10 +72,10 @@ func main() {
 			}
 		}
 	}
-	st, err := proc.Wait()
-	code := 1
-	if err == nil {
-		code = st.ExitCode()
+	code, err := proc.Wait()
+	proc.Close()
+	if err != nil {
+		log.Printf("[launch] ожидание: %v", err)
 	}
 	if restorePower != "" {
 		tweaks.SetPowerScheme(restorePower)

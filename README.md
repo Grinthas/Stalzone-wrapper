@@ -15,7 +15,9 @@ GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -H windowsgui" -o dist/servic
 
 1. Положите `Stalzone Wrapper.exe` и `service.exe` в одну постоянную папку.
 2. Запустите `Stalzone Wrapper.exe` (при необходимости — «Перезапустить от администратора»).
-3. На «Главной» нажмите «Обзор…», выберите `java.exe`/`javaw.exe` игры и «Установить».
+3. На «Главной» нажмите «Установить». Hook ставится на exe игры — `stalzone.exe` (лаунчер)
+   и `stalzonew.exe` (Steam), как в EXBO-Community/stalcraft-jvm-optimization. Путь к игре не нужен.
+   Hook предыдущих версий на `java.exe` удаляется автоматически.
 4. На вкладке «Профили» выберите `low`, `balanced` или `high` (создаются под ваш ПК в `configs/`).
    Можно положить свой JSON-профиль (пример: `examples/aikar.json`).
 5. На вкладке «Оптимизация» wrapper определяет процессор, память и видеокарту, создаёт профиль `auto`
@@ -60,7 +62,8 @@ Wrapper не изменяет файлы игры и не обходит её з
 
 ## Благодарности
 
-Протокол списка узлов и проверки задержки, а также параметр `-Droxy_address_override`
+Способ установки (hook на `stalzone.exe`/`stalzonew.exe`), запуск игры через `NtCreateUserProcess`
+с пропуском IFEO, протокол списка узлов и проверки задержки, а также параметр `-Droxy_address_override`
 взяты из MIT-проекта [EXBO-Community/stalcraft-jvm-optimization](https://github.com/EXBO-Community/stalcraft-jvm-optimization).
 
 ## Лицензия

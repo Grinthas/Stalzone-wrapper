@@ -1,76 +1,68 @@
-// Package ifeo регистрирует hook через Image File Execution Options.
+// Package ifeo регистрирует hook через Image File Execution Options: при запуске
+// exe игры Windows вместо него запускает service.exe и передаёт ему исходную команду.
 //
-// Используется режим фильтра (UseFilter + FilterFullPath, Windows 10 1607+),
-// поэтому перехватывается только java.exe из папки игры, а не любая Java.
+// Hook ставится по имени exe игры, как в EXBO-Community/stalcraft-jvm-optimization:
+// stalzone.exe запускает отдельный лаунчер, stalzonew.exe — Steam.
 package ifeo
 
 import (
 	"fmt"
-	"github.com/grinthas/stalzone-wrapper/internal/sys"
 	"path/filepath"
 	"strings"
+
+	"github.com/grinthas/stalzone-wrapper/internal/sys"
 )
 
-const (
-	root   = `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options`
-	subkey = "StalzoneWrapper"
-)
+const root = `HKLM\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options`
+
+// Target — exe игры, на который ставится hook.
+type Target struct {
+	Exe   string `json:"exe"`
+	Title string `json:"title"`
+}
+
+var Targets = []Target{
+	{"stalzone.exe", "Лаунчер Stalzone"},
+	{"stalzonew.exe", "Steam"},
+}
 
 func reg(args ...string) (string, error) {
 	out, err := sys.Command("reg.exe", args...).CombinedOutput()
 	return string(out), err
 }
 
-// keyFor возвращает ключ фильтра; имя подключа включает хеш пути, чтобы
-// несколько целей с одинаковым именем exe не конфликтовали.
-func keyFor(target string) (exeKey, filterKey string) {
-	exeKey = root + `\` + strings.ToLower(filepath.Base(target))
-	var h uint32 = 2166136261
-	for _, c := range strings.ToLower(target) {
-		h = (h ^ uint32(c)) * 16777619
-	}
-	return exeKey, fmt.Sprintf(`%s\%s_%08x`, exeKey, subkey, h)
-}
-
-// Install ставит hook на target, при запуске которого Windows вызовет service.
-func Install(target, service string) error {
-	exeKey, filterKey := keyFor(target)
-	steps := [][]string{
-		{"add", exeKey, "/v", "UseFilter", "/t", "REG_DWORD", "/d", "1", "/f"},
-		{"add", filterKey, "/v", "FilterFullPath", "/t", "REG_SZ", "/d", target, "/f"},
-		{"add", filterKey, "/v", "Debugger", "/t", "REG_SZ", "/d", `"` + service + `"`, "/f"},
-	}
-	for _, s := range steps {
-		if out, err := reg(s...); err != nil {
-			return fmt.Errorf("%v: %s", err, strings.TrimSpace(out))
+// Install направляет все exe игры на service.exe.
+func Install(service string) error {
+	for _, t := range Targets {
+		if out, err := reg("add", root+`\`+t.Exe, "/v", "Debugger", "/t", "REG_SZ", "/d", `"`+service+`"`, "/f"); err != nil {
+			Uninstall()
+			return fmt.Errorf("%s: %v: %s", t.Exe, err, strings.TrimSpace(out))
 		}
 	}
 	return nil
 }
 
-// Uninstall удаляет hook; UseFilter снимается, если других фильтров не осталось.
-func Uninstall(target string) error {
-	exeKey, filterKey := keyFor(target)
-	if out, err := reg("delete", filterKey, "/f"); err != nil && Installed(target) {
-		return fmt.Errorf("%v: %s", err, strings.TrimSpace(out))
-	}
-	out, _ := reg("query", exeKey)
-	if !strings.Contains(strings.ToLower(out), strings.ToLower(exeKey)+`\`) {
-		reg("delete", exeKey, "/v", "UseFilter", "/f")
+// Uninstall удаляет hook со всех exe игры. Удаляется только значение Debugger:
+// другие настройки IFEO, если они есть у этих exe, остаются.
+func Uninstall() error {
+	for _, t := range Targets {
+		if Debugger(t.Exe) == "" {
+			continue
+		}
+		if out, err := reg("delete", root+`\`+t.Exe, "/v", "Debugger", "/f"); err != nil {
+			return fmt.Errorf("%s: %v: %s", t.Exe, err, strings.TrimSpace(out))
+		}
 	}
 	return nil
 }
 
-func Installed(target string) bool {
-	_, filterKey := keyFor(target)
-	_, err := reg("query", filterKey, "/v", "Debugger")
-	return err == nil
+// Debugger возвращает путь к service.exe из hook для exe ("" — hook не установлен).
+func Debugger(exe string) string {
+	return queryDebugger(root + `\` + exe)
 }
 
-// Debugger возвращает путь к service.exe, записанный в hook ("" — hook не найден).
-func Debugger(target string) string {
-	_, filterKey := keyFor(target)
-	out, err := reg("query", filterKey, "/v", "Debugger")
+func queryDebugger(key string) string {
+	out, err := reg("query", key, "/v", "Debugger")
 	if err != nil {
 		return ""
 	}
@@ -80,4 +72,21 @@ func Debugger(target string) string {
 		}
 	}
 	return ""
+}
+
+// RemoveLegacy удаляет hook старых версий (≤1.3.3), которые ставились на
+// java.exe/javaw.exe игры с фильтром по полному пути.
+func RemoveLegacy(paths []string) {
+	for _, p := range paths {
+		exeKey := root + `\` + strings.ToLower(filepath.Base(p))
+		var h uint32 = 2166136261
+		for _, c := range strings.ToLower(p) {
+			h = (h ^ uint32(c)) * 16777619
+		}
+		reg("delete", fmt.Sprintf(`%s\StalzoneWrapper_%08x`, exeKey, h), "/f")
+		out, _ := reg("query", exeKey)
+		if !strings.Contains(strings.ToLower(out), strings.ToLower(exeKey)+`\`) {
+			reg("delete", exeKey, "/v", "UseFilter", "/f")
+		}
+	}
 }

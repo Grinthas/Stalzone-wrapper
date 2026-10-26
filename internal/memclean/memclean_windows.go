@@ -8,6 +8,7 @@ package memclean
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"unsafe"
@@ -81,7 +82,7 @@ type Result struct {
 	Errors  []string `json:"errors"`
 }
 
-// Clean выполняет очистку. skip — полные пути exe, чьи процессы не трогаем
+// Clean выполняет очистку. skip — имена exe, чьи процессы не трогаем
 // (сама игра: урезание её рабочего набора вызывает подтормаживания).
 func Clean(o Options, skip []string) Result {
 	r := Result{Before: Current()}
@@ -203,9 +204,9 @@ func skipped(h syscall.Handle, skip []string) bool {
 	if r, _, _ := procQueryFullProcessImageName.Call(uintptr(h), 0, uintptr(unsafe.Pointer(&buf[0])), uintptr(unsafe.Pointer(&size))); r == 0 {
 		return false
 	}
-	path := syscall.UTF16ToString(buf[:size])
+	name := filepath.Base(syscall.UTF16ToString(buf[:size]))
 	for _, s := range skip {
-		if strings.EqualFold(path, s) {
+		if strings.EqualFold(name, s) {
 			return true
 		}
 	}

@@ -122,7 +122,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
       <span data-t="tab.settings"></span></button>
   </nav>
-  <div class="side-foot">v1.3.3</div>
+  <div class="side-foot">v1.4.0</div>
 </aside>
 
 <main>
@@ -141,18 +141,12 @@
     </div>
     <div class="card">
       <h2 data-t="install.title"></h2>
-      <div class="row">
-        <input type="text" id="javaPath" class="grow" data-tp="install.placeholder">
-        <button class="btn" onclick="browse()" data-t="install.browse"></button>
-        <button class="btn primary" onclick="doInstall()" data-t="install.btn"></button>
-      </div>
-      <details><summary data-t="install.howto"></summary>
-        <ol><li data-t="howto.1"></li><li data-t="howto.2"></li><li data-t="howto.3"></li></ol>
-      </details>
-    </div>
-    <div class="card">
-      <h2 data-t="targets.title"></h2>
+      <div class="sub" style="margin:0 0 12px" data-t="install.d"></div>
       <div id="targets"></div>
+      <div class="row" style="margin-top:14px">
+        <button class="btn primary" onclick="doInstall()" data-t="install.btn"></button>
+        <button class="btn danger" onclick="doUninstall()" data-t="targets.remove"></button>
+      </div>
     </div>
   </section>
 
@@ -272,13 +266,11 @@ const I18N = {
     "mem.low": "Меньше 8 GB RAM: включите файл подкачки, чтобы избежать зависаний.",
     "stat.status": "Статус", "stat.profile": "Профиль", "stat.system": "Система",
     "status.on": "Активен", "status.off": "Не установлен", "unset": "Не выбран",
-    "install.title": "Установка", "install.placeholder": "C:\\...\\Stalzone\\...\\bin\\javaw.exe",
-    "install.browse": "Обзор…", "install.btn": "Установить", "install.howto": "Где найти java.exe игры?",
-    "howto.1": "Запустите игру.", "howto.2": "Откройте Диспетчер задач → «Подробности», найдите java.exe или javaw.exe.",
-    "howto.3": "ПКМ → «Открыть расположение файла» и укажите этот файл здесь.",
-    "targets.title": "Установленные hook", "targets.empty": "Пока ничего не установлено.", "targets.remove": "Удалить",
+    "install.title": "Установка в игру",
+    "install.d": "Wrapper встраивается в запуск игры и через лаунчер, и через Steam. Путь к игре указывать не нужно. После установки запускайте игру как обычно.",
+    "install.btn": "Установить", "install.reinstall": "Переустановить", "targets.remove": "Удалить",
     "badge.on": "вкл", "badge.off": "выкл", "badge.broken": "ошибка",
-    "targets.broken": "Не найден %s — игра не запустится. Возможно, его удалил антивирус или папку перенесли.", "targets.repair": "Исправить",
+    "targets.broken": "Не найден %s — игра не запустится. Возможно, его удалил антивирус или папку перенесли.", 
     "ok.repaired": "Hook исправлен.", "err.no_service": "Рядом с программой нет service.exe. Распакуйте архив заново и добавьте папку в исключения антивируса.",
     "err.from_temp": "Программа запущена из временной папки (из архива). Распакуйте архив в постоянную папку и запустите оттуда.",
     "profiles.title": "Профили", "profiles.sub": "Выберите профиль — он применится при следующем запуске игры.",
@@ -321,13 +313,11 @@ const I18N = {
     "mem.low": "Less than 8 GB RAM: enable the page file to avoid freezes.",
     "stat.status": "Status", "stat.profile": "Profile", "stat.system": "System",
     "status.on": "Active", "status.off": "Not installed", "unset": "Not set",
-    "install.title": "Install", "install.placeholder": "C:\\...\\Stalzone\\...\\bin\\javaw.exe",
-    "install.browse": "Browse…", "install.btn": "Install", "install.howto": "Where is the game's java.exe?",
-    "howto.1": "Start the game.", "howto.2": "Open Task Manager → Details and find java.exe or javaw.exe.",
-    "howto.3": "Right-click → Open file location and select that file here.",
-    "targets.title": "Installed hooks", "targets.empty": "Nothing installed yet.", "targets.remove": "Remove",
+    "install.title": "Install into the game",
+    "install.d": "The wrapper hooks the game launch from both the launcher and Steam. No game path needed. After installing, start the game as usual.",
+    "install.btn": "Install", "install.reinstall": "Reinstall", "targets.remove": "Remove",
     "badge.on": "on", "badge.off": "off", "badge.broken": "error",
-    "targets.broken": "%s is missing — the game will not start. An antivirus may have removed it or the folder was moved.", "targets.repair": "Repair",
+    "targets.broken": "%s is missing — the game will not start. An antivirus may have removed it or the folder was moved.", 
     "ok.repaired": "Hook repaired.", "err.no_service": "service.exe is not next to the program. Unpack the archive again and add the folder to antivirus exclusions.",
     "err.from_temp": "The program runs from a temporary folder (inside the archive). Unpack it to a permanent folder and run it from there.",
     "profiles.title": "Profiles", "profiles.sub": "Pick a profile — it applies on the next game launch.",
@@ -402,16 +392,15 @@ async function refresh() {
   $("#statSystem").textContent = `${st.ram} GB · ${st.cpus} CPU`;
   $("#dirPath").textContent = st.dir;
 
-  $("#targets").innerHTML = st.targets.length ? st.targets.map((x, i) => `
+  $("#targets").innerHTML = st.targets.map(x => `
     <div class="row target">
-      <span class="badge ${x.broken ? "off" : x.installed ? "on" : "off"}">${t(x.broken ? "badge.broken" : x.installed ? "badge.on" : "badge.off")}</span>
+      <span class="badge ${x.installed && !x.broken ? "on" : "off"}">${t(x.broken ? "badge.broken" : x.installed ? "badge.on" : "badge.off")}</span>
       <div class="grow" style="min-width:0">
-        <div class="path" title="${esc(x.path)}">${esc(x.path)}</div>
+        <div><b>${esc(x.exe)}</b> <span style="color:var(--muted)">· ${esc(x.title)}</span></div>
         ${x.broken ? `<div style="color:var(--bad);font-size:12.5px;margin-top:4px">${esc(t("targets.broken", x.service))}</div>` : ""}
       </div>
-      ${x.broken ? `<button class="btn primary" onclick="doRepair(${i})">${t("targets.repair")}</button>` : ""}
-      <button class="btn danger" onclick="doUninstall(${i})">${t("targets.remove")}</button>
-    </div>`).join("") : `<div class="empty">${t("targets.empty")}</div>`;
+    </div>`).join("");
+  document.querySelector('[onclick="doInstall()"]').textContent = t(st.targets.some(x => x.installed) ? "install.reinstall" : "install.btn");
 
   $("#profileList").innerHTML = st.profiles.length ? st.profiles.map((p, i) => `
     <div class="profile ${p.name === st.profile ? "sel" : ""}" onclick="pick(${i})">
@@ -422,22 +411,12 @@ async function refresh() {
     </div>`).join("") : `<div class="empty">${t("profiles.empty")}</div>`;
 }
 
-async function browse() {
-  const p = await window.pickJava(t("pick.title"));
-  if (p) $("#javaPath").value = p;
-}
 async function doInstall() {
-  const p = $("#javaPath").value.trim();
-  if (!p) return toast(t("err.empty"), true);
-  try { await window.install(p); $("#javaPath").value = ""; toast(t("ok.installed")); } catch (e) { fail(e); }
+  try { await window.install(); toast(t("ok.installed")); } catch (e) { fail(e); }
   refresh();
 }
-async function doRepair(i) {
-  try { await window.install(st.targets[i].path); toast(t("ok.repaired")); } catch (e) { fail(e); }
-  refresh();
-}
-async function doUninstall(i) {
-  try { await window.uninstall(st.targets[i].path); toast(t("ok.removed")); } catch (e) { fail(e); }
+async function doUninstall() {
+  try { await window.uninstall(); toast(t("ok.removed")); } catch (e) { fail(e); }
   refresh();
 }
 async function doGenerate() {

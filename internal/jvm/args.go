@@ -17,9 +17,27 @@ func overridden(arg string) bool {
 		strings.HasPrefix(arg, "-XX:")
 }
 
-// Rewrite убирает из JVM-части аргументов флаги памяти и -XX:, вставляет flags
-// и оставляет без изменений главный класс/-jar и аргументы самой игры.
+// propertyKey возвращает имя системного свойства для -Dkey=value, иначе "".
+func propertyKey(arg string) string {
+	if !strings.HasPrefix(arg, "-D") {
+		return ""
+	}
+	key, _, _ := strings.Cut(arg[2:], "=")
+	return key
+}
+
+// Rewrite убирает из JVM-части аргументов флаги памяти, -XX: и системные свойства,
+// которые задаются в flags, вставляет flags и оставляет без изменений
+// главный класс/-jar и аргументы самой игры.
 func Rewrite(args, flags []string) []string {
+	ours := map[string]bool{}
+	tuning := false // заменяем ли мы настройки памяти/GC
+	for _, f := range flags {
+		if k := propertyKey(f); k != "" {
+			ours[k] = true
+		}
+		tuning = tuning || overridden(f)
+	}
 	out := append([]string{}, flags...)
 	i := 0
 	for i < len(args) {
@@ -32,7 +50,7 @@ func Rewrite(args, flags []string) []string {
 			i += 2
 			continue
 		}
-		if !overridden(a) {
+		if !(tuning && overridden(a)) && !ours[propertyKey(a)] {
 			out = append(out, a)
 		}
 		i++

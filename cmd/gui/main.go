@@ -20,6 +20,7 @@ import (
 	"github.com/grinthas/stalzone-wrapper/internal/ifeo"
 	"github.com/grinthas/stalzone-wrapper/internal/memclean"
 	"github.com/grinthas/stalzone-wrapper/internal/sys"
+	"github.com/grinthas/stalzone-wrapper/internal/tunnel"
 )
 
 //go:embed index.html
@@ -196,6 +197,27 @@ func main() {
 	})
 	w.Bind("memClean", func() memclean.Result { return cleanMemory() })
 	go autoClean(w)
+
+	w.Bind("serverRegions", func() map[string]any {
+		return map[string]any{"regions": tunnel.Regions, "selected": config.LoadSettings().Servers}
+	})
+	w.Bind("serverList", tunnel.Fetch)
+	w.Bind("serverProbe", tunnel.ProbeAll)
+	w.Bind("serverSelect", func(region, address string) error {
+		if !tunnel.ValidRegion(region) {
+			return errors.New("bad region")
+		}
+		s := config.LoadSettings()
+		if s.Servers == nil {
+			s.Servers = map[string]string{}
+		}
+		if address == "" {
+			delete(s.Servers, region)
+		} else {
+			s.Servers[region] = address
+		}
+		return config.SaveSettings(s)
+	})
 
 	w.SetHtml(page)
 	w.Run()

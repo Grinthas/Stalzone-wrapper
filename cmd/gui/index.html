@@ -79,6 +79,13 @@
   .toast.err { border-left-color: var(--bad); }
   ol { margin: 0; padding-left: 20px; color: var(--muted); }
   ol li { margin: 4px 0; }
+  .srv { display: flex; align-items: center; gap: 12px; padding: 9px 0; border-top: 1px solid var(--line); }
+  .srv:first-of-type { border-top: 0; }
+  .srv .name { font-weight: 600; }
+  .srv .addr { color: var(--muted); font: 12px Consolas, monospace; }
+  .ms { min-width: 120px; text-align: right; font-size: 13px; }
+  .ms.good { color: var(--ok); } .ms.mid { color: var(--warn); } .ms.bad { color: var(--bad); }
+  .btn.sel { border-color: var(--accent); color: var(--accent2); }
   .meter { height: 12px; background: var(--bg); border-radius: 99px; overflow: hidden; border: 1px solid var(--line); }
   .meter > div { height: 100%; background: var(--ok); transition: width .4s, background .4s; }
   .big { font-size: 34px; font-weight: 700; }
@@ -99,6 +106,9 @@
     <button data-tab="profiles">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
       <span data-t="tab.profiles"></span></button>
+    <button data-tab="servers">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a14 14 0 0 1 0 18M12 3a14 14 0 0 0 0 18"/></svg>
+      <span data-t="tab.servers"></span></button>
     <button data-tab="memory">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="7" width="16" height="10" rx="1"/><path d="M8 7V4M12 7V4M16 7V4M8 20v-3M12 20v-3M16 20v-3"/></svg>
       <span data-t="tab.memory"></span></button>
@@ -109,7 +119,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
       <span data-t="tab.settings"></span></button>
   </nav>
-  <div class="side-foot">v1.1.0</div>
+  <div class="side-foot">v1.2.0</div>
 </aside>
 
 <main>
@@ -151,6 +161,23 @@
       <button class="btn" onclick="openFolder('configs')" data-t="profiles.folder"></button>
     </div>
     <div class="profiles" id="profileList"></div>
+  </section>
+
+  <section id="servers" hidden>
+    <h1 data-t="srv.title"></h1>
+    <div class="sub" data-t="srv.sub"></div>
+    <div class="card">
+      <div class="seg" id="srvRegions"></div>
+      <div class="sub" style="margin:12px 0 0" id="srvCurrent"></div>
+      <div class="row" style="margin-top:12px;flex-wrap:wrap">
+        <button class="btn" onclick="loadServers()" data-t="srv.load"></button>
+        <button class="btn" id="srvProbeBtn" onclick="probeServers()" data-t="srv.probe"></button>
+        <button class="btn primary" onclick="pickBest()" data-t="srv.best"></button>
+        <button class="btn danger" onclick="selectServer('')" data-t="srv.reset"></button>
+      </div>
+    </div>
+    <div id="srvPools"></div>
+    <div class="sub" data-t="srv.note"></div>
   </section>
 
   <section id="memory" hidden>
@@ -245,7 +272,13 @@ const I18N = {
     "mem.mod": "Изменённые страницы", "mem.mod.d": "Записывает отложенные изменения на диск и освобождает их.",
     "mem.fc": "Системный файловый кэш", "mem.fc.d": "Сбрасывает кэш файлов Windows.",
     "mem.auto": "Автоочистка", "mem.auto.on": "Очищать автоматически", "mem.auto.d": "Проверка каждые 15 секунд, пока открыто окно программы; не чаще раза в минуту.",
-    "mem.threshold": "Когда занято больше"
+    "mem.threshold": "Когда занято больше",
+    "tab.servers": "Сервер", "srv.title": "Сервер подключения", "srv.sub": "Выберите узел (туннель), через который игра подключается к серверам региона. Применяется при следующем запуске игры.",
+    "srv.load": "Загрузить узлы", "srv.probe": "Проверить пинг", "srv.probing": "Проверка…", "srv.best": "Выбрать лучший", "srv.reset": "Выбор игры",
+    "srv.current.auto": "Сейчас: узел выбирает игра", "srv.current": "Сейчас: %s", "srv.loading": "Загружаю список узлов…",
+    "srv.select": "Выбрать", "srv.selected": "Выбран", "srv.noresp": "нет ответа", "srv.limited": "лимит подключений",
+    "srv.ms": "%s мс · сервер %t мс", "srv.saved": "Узел сохранён. Перезапустите игру.", "srv.cleared": "Узел выбирает игра.",
+    "srv.nobest": "Сначала проверьте пинг.", "srv.note": "Экспериментально. Пинг — до узла, «сервер» — от узла до игрового сервера. Если игра не подключается, нажмите «Выбор игры»."
   },
   en: {
     tagline: "JVM optimization", "tab.home": "Home", "tab.profiles": "Profiles", "tab.log": "Log", "tab.settings": "Settings",
@@ -278,7 +311,13 @@ const I18N = {
     "mem.mod": "Modified page list", "mem.mod.d": "Writes pending changes to disk and frees them.",
     "mem.fc": "System file cache", "mem.fc.d": "Flushes the Windows file cache.",
     "mem.auto": "Auto clean", "mem.auto.on": "Clean automatically", "mem.auto.d": "Checked every 15 seconds while the program window is open; at most once a minute.",
-    "mem.threshold": "When usage exceeds"
+    "mem.threshold": "When usage exceeds",
+    "tab.servers": "Server", "srv.title": "Connection server", "srv.sub": "Choose the node (tunnel) the game uses to reach the region's servers. Applies on the next game launch.",
+    "srv.load": "Load nodes", "srv.probe": "Measure ping", "srv.probing": "Measuring…", "srv.best": "Pick best", "srv.reset": "Game's choice",
+    "srv.current.auto": "Now: the game picks the node", "srv.current": "Now: %s", "srv.loading": "Loading node list…",
+    "srv.select": "Select", "srv.selected": "Selected", "srv.noresp": "no response", "srv.limited": "connection limit",
+    "srv.ms": "%s ms · server %t ms", "srv.saved": "Node saved. Restart the game.", "srv.cleared": "The game picks the node.",
+    "srv.nobest": "Measure ping first.", "srv.note": "Experimental. Ping is to the node, \"server\" is from the node to the game server. If the game can't connect, press \"Game's choice\"."
   }
 };
 let lang = "ru", st = null;
@@ -404,6 +443,64 @@ async function doMemClean() {
   btn.disabled = false; btn.textContent = t("mem.clean");
   loadMem();
 }
+let srvRegion = "ru", srvData = null, srvPools = [], srvResults = {};
+async function initServers() {
+  srvData = await window.serverRegions();
+  $("#srvRegions").innerHTML = srvData.regions.map(r =>
+    `<button data-r="${r.id}" class="${r.id === srvRegion ? "active" : ""}">${r.id.toUpperCase()}</button>`).join("");
+  $("#srvRegions").querySelectorAll("button").forEach(b => b.onclick = () => {
+    srvRegion = b.dataset.r; srvPools = []; srvResults = {}; initServers();
+  });
+  const cur = (srvData.selected || {})[srvRegion];
+  $("#srvCurrent").textContent = cur ? t("srv.current", cur) : t("srv.current.auto");
+  renderServers();
+}
+function renderServers() {
+  const cur = (srvData && srvData.selected || {})[srvRegion];
+  $("#srvPools").innerHTML = srvPools.map(p => `
+    <div class="card"><h2>${esc(p.name)}</h2>${p.tunnels.map(e => {
+      const r = srvResults[e.address];
+      let ms = "", cls = "";
+      if (r) {
+        if (r.error) { ms = t("srv.noresp"); cls = "bad"; }
+        else {
+          const total = r.pingMs + r.serverMs;
+          ms = t("srv.ms", r.pingMs).replace("%t", r.serverMs) + (r.limited ? " · " + t("srv.limited") : "");
+          cls = r.limited ? "bad" : total < 60 ? "good" : total < 120 ? "mid" : "bad";
+        }
+      }
+      const sel = e.address === cur;
+      return `<div class="srv"><div class="grow"><div class="name">${esc(e.name || e.address)}</div><div class="addr">${esc(e.address)}</div></div>
+        <div class="ms ${cls}">${ms}</div>
+        <button class="btn ${sel ? "sel" : ""}" data-a="${esc(e.address)}">${t(sel ? "srv.selected" : "srv.select")}</button></div>`;
+    }).join("")}</div>`).join("");
+  $("#srvPools").querySelectorAll("button[data-a]").forEach(b => b.onclick = () => selectServer(b.dataset.a));
+}
+async function loadServers() {
+  $("#srvPools").innerHTML = `<div class="card empty">${t("srv.loading")}</div>`;
+  try { srvPools = await window.serverList(srvRegion) || []; srvResults = {}; renderServers(); }
+  catch (e) { $("#srvPools").innerHTML = ""; fail(e); }
+}
+async function probeServers() {
+  if (!srvPools.length) await loadServers();
+  if (!srvPools.length) return;
+  const btn = $("#srvProbeBtn"); btn.disabled = true; btn.textContent = t("srv.probing");
+  try { srvResults = await window.serverProbe(srvPools.flatMap(p => p.tunnels.map(e => e.address))); renderServers(); }
+  catch (e) { fail(e); }
+  btn.disabled = false; btn.textContent = t("srv.probe");
+}
+async function pickBest() {
+  const ok = Object.entries(srvResults).filter(([, r]) => !r.error && !r.limited);
+  if (!ok.length) return toast(t("srv.nobest"), true);
+  ok.sort((a, b) => (a[1].pingMs + a[1].serverMs) - (b[1].pingMs + b[1].serverMs));
+  selectServer(ok[0][0]);
+}
+async function selectServer(address) {
+  try { await window.serverSelect(srvRegion, address); toast(t(address ? "srv.saved" : "srv.cleared")); }
+  catch (e) { fail(e); }
+  initServers();
+}
+
 window.onAutoClean = r => { showResult(r, "mem.auto.done"); toast(t("mem.auto.done", r.freedMB)); loadMem(); };
 
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
@@ -411,6 +508,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("main section").forEach(s => s.hidden = s.id !== b.dataset.tab);
   if (b.dataset.tab === "log") loadLog();
   clearInterval(memTimer);
+  if (b.dataset.tab === "servers") initServers();
   if (b.dataset.tab === "memory") { loadMem(); loadMemSettings(); memTimer = setInterval(loadMem, 2000); }
 });
 document.querySelectorAll("#langSeg button").forEach(b => b.onclick = async () => {

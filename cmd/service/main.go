@@ -14,6 +14,7 @@ import (
 	"github.com/grinthas/stalzone-wrapper/internal/config"
 	"github.com/grinthas/stalzone-wrapper/internal/jvm"
 	"github.com/grinthas/stalzone-wrapper/internal/sys"
+	"github.com/grinthas/stalzone-wrapper/internal/tunnel"
 )
 
 func main() {
@@ -29,11 +30,15 @@ func main() {
 
 	target, args := os.Args[1], os.Args[2:]
 	s := config.LoadSettings()
+	flags := tunnel.Flags(s.Servers)
 	if p, err := config.LoadProfile(s.Profile); err != nil {
-		log.Printf("[config] профиль %q не загружен (%v), запуск без изменений", s.Profile, err)
+		log.Printf("[config] профиль %q не загружен (%v), флаги JVM не меняются", s.Profile, err)
 	} else {
-		args = jvm.Rewrite(args, p.Flags())
+		flags = append(p.Flags(), flags...)
 		log.Printf("[config] профиль %q", s.Profile)
+	}
+	if len(flags) > 0 {
+		args = jvm.Rewrite(args, flags)
 	}
 	log.Printf("[launch] %s %v", target, args)
 

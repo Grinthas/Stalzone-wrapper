@@ -18,6 +18,8 @@ type Settings struct {
 	Profile  string   `json:"profile"`
 	Language string   `json:"language"`
 	Memory   *Memory  `json:"memory,omitempty"`
+	// Servers — выбранные узлы подключения: регион → host:port. Пусто — выбор игры.
+	Servers map[string]string `json:"servers,omitempty"`
 }
 
 // Memory — настройки очистки памяти (аналог Mem Reduct).

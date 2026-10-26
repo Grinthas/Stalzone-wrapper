@@ -21,3 +21,12 @@ func TestRewriteJar(t *testing.T) {
 		t.Fatalf("got %v", got)
 	}
 }
+
+func TestRewriteProperty(t *testing.T) {
+	in := []string{"-Xmx4G", "-Droxy_address_override.eu=old:1", "-Dkeep=1", "Main"}
+	got := Rewrite(in, []string{"-Droxy_address_override.eu=new:2"})
+	want := []string{"-Droxy_address_override.eu=new:2", "-Xmx4G", "-Dkeep=1", "Main"}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v", got)
+	}
+}

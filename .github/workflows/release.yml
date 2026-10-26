@@ -42,6 +42,11 @@ jobs:
           cp README.md LICENSE dist/StalzoneWrapper/
           cd dist && zip -r "StalzoneWrapper-${VERSION}-windows-x64.zip" StalzoneWrapper
 
+      - name: Remove existing release with the same version
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release delete "$VERSION" --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
+
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.VERSION }}

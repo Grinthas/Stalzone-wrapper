@@ -7,20 +7,20 @@
 ## Сборка
 
 ```
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/cli.exe ./cmd/cli
-GOOS=windows GOARCH=amd64 go build -ldflags="-s -w" -o dist/service.exe ./cmd/service
+GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -H windowsgui" -o "dist/Stalzone Wrapper.exe" ./cmd/gui
+GOOS=windows GOARCH=amd64 go build -ldflags="-s -w -H windowsgui" -o dist/service.exe ./cmd/service
 ```
 
 ## Использование
 
-1. Положите `cli.exe` и `service.exe` в постоянную папку (без кириллицы и пробелов в пути надёжнее).
-2. Запустите `cli.exe` → «Установить hook» → вставьте путь к `java.exe`/`javaw.exe`,
-   которым запускается игра (Диспетчер задач → Подробности → процесс Java → «Открыть расположение файла»).
-3. «Пересоздать конфиги» создаёт профили `low`, `balanced`, `high` под ваш объём RAM в `configs/`.
+1. Положите `Stalzone Wrapper.exe` и `service.exe` в одну постоянную папку.
+2. Запустите `Stalzone Wrapper.exe` (при необходимости — «Перезапустить от администратора»).
+3. На «Главной» нажмите «Обзор…», выберите `java.exe`/`javaw.exe` игры и «Установить».
+4. На вкладке «Профили» выберите `low`, `balanced` или `high` (создаются под ваш ПК в `configs/`).
    Можно положить свой JSON-профиль (пример: `examples/aikar.json`).
-4. Запустите игру. Что было передано в Java, видно в `wrapper.log`.
+5. Запустите игру. Что было передано в Java — на вкладке «Журнал».
 
-Удалить: `cli.exe` → «Удалить hook». Требуется Windows 10 1607+.
+Требуется Windows 10 1607+ и WebView2 Runtime (есть в Windows 10/11 по умолчанию).
 
 ## Как работает
 

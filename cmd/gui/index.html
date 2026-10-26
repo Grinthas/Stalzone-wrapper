@@ -1,0 +1,321 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Stalzone Wrapper</title>
+<style>
+  :root {
+    --bg: #0f1210; --panel: #171b18; --panel2: #1e231f; --line: #2a312c;
+    --text: #e4e8e3; --muted: #8c968e; --accent: #c8a24a; --accent2: #e0bb5f;
+    --ok: #6fbf73; --bad: #d9655b; --warn: #d9a441;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+    font: 14px/1.45 "Segoe UI", system-ui, sans-serif; user-select: none; }
+  body { display: flex; }
+  aside { width: 210px; background: var(--panel); border-right: 1px solid var(--line);
+    display: flex; flex-direction: column; padding: 18px 12px; }
+  .logo { font-weight: 700; font-size: 17px; letter-spacing: .5px; padding: 0 8px 18px; }
+  .logo span { color: var(--accent); }
+  .logo small { display: block; color: var(--muted); font-weight: 400; font-size: 12px; }
+  nav button { display: flex; width: 100%; align-items: center; gap: 10px; padding: 10px 12px;
+    margin-bottom: 4px; border: 0; border-radius: 8px; background: none; color: var(--muted);
+    font: inherit; text-align: left; cursor: pointer; }
+  nav button:hover { background: var(--panel2); color: var(--text); }
+  nav button.active { background: var(--panel2); color: var(--accent2); }
+  nav svg { width: 18px; height: 18px; flex: none; }
+  .side-foot { margin-top: auto; padding: 8px; color: var(--muted); font-size: 12px; }
+  main { flex: 1; overflow-y: auto; padding: 26px 30px; }
+  h1 { margin: 0 0 4px; font-size: 22px; font-weight: 600; }
+  .sub { color: var(--muted); margin-bottom: 22px; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px;
+    padding: 18px 20px; margin-bottom: 16px; }
+  .card h2 { margin: 0 0 12px; font-size: 15px; font-weight: 600; }
+  .row { display: flex; align-items: center; gap: 12px; }
+  .grow { flex: 1; min-width: 0; }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 16px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px 16px; }
+  .stat b { display: block; font-size: 20px; margin-top: 2px; }
+  .stat span { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .6px; }
+  .btn { border: 1px solid var(--line); background: var(--panel2); color: var(--text); font: inherit;
+    padding: 8px 14px; border-radius: 8px; cursor: pointer; white-space: nowrap; }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #1a1508; font-weight: 600; }
+  .btn.primary:hover { background: var(--accent2); }
+  .btn.danger:hover { border-color: var(--bad); color: var(--bad); }
+  input[type=text] { width: 100%; background: var(--bg); border: 1px solid var(--line); color: var(--text);
+    font: inherit; padding: 8px 10px; border-radius: 8px; user-select: text; }
+  input[type=text]:focus { outline: none; border-color: var(--accent); }
+  .path { font-family: Consolas, monospace; font-size: 12.5px; overflow: hidden; text-overflow: ellipsis;
+    white-space: nowrap; user-select: text; }
+  .badge { font-size: 12px; padding: 2px 9px; border-radius: 99px; border: 1px solid; }
+  .badge.on { color: var(--ok); border-color: var(--ok); }
+  .badge.off { color: var(--bad); border-color: var(--bad); }
+  .target { padding: 10px 0; border-top: 1px solid var(--line); }
+  .target:first-of-type { border-top: 0; }
+  .empty { color: var(--muted); }
+  .banner { border-radius: 10px; padding: 12px 16px; margin-bottom: 16px; display: flex; gap: 12px;
+    align-items: center; background: #2a2414; border: 1px solid #5a4a22; color: #f0d79a; }
+  .banner.info { background: #1b2420; border-color: #2f4a3b; color: #b9dcc4; }
+  .profiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; }
+  .profile { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px;
+    cursor: pointer; transition: border-color .15s; }
+  .profile:hover { border-color: var(--muted); }
+  .profile.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent) inset; }
+  .profile h3 { margin: 0; font-size: 16px; text-transform: capitalize; }
+  .profile .heap { color: var(--accent2); font-size: 13px; margin: 2px 0 10px; }
+  .profile p { margin: 0; color: var(--muted); font-size: 12.5px; }
+  details { margin-top: 10px; }
+  summary { cursor: pointer; color: var(--muted); font-size: 12px; }
+  pre { margin: 8px 0 0; padding: 10px; background: var(--bg); border-radius: 8px; font: 11.5px/1.5 Consolas, monospace;
+    white-space: pre-wrap; word-break: break-all; color: #b8c2ba; max-height: 380px; overflow: auto; user-select: text; }
+  .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; }
+  .seg button { border: 0; background: var(--panel2); color: var(--muted); font: inherit; padding: 8px 16px; cursor: pointer; }
+  .seg button.active { background: var(--accent); color: #1a1508; font-weight: 600; }
+  .toast { position: fixed; right: 20px; bottom: 20px; background: var(--panel2); border: 1px solid var(--line);
+    border-left: 3px solid var(--ok); padding: 10px 16px; border-radius: 8px; opacity: 0; transform: translateY(8px);
+    transition: .2s; pointer-events: none; max-width: 420px; }
+  .toast.show { opacity: 1; transform: none; }
+  .toast.err { border-left-color: var(--bad); }
+  ol { margin: 0; padding-left: 20px; color: var(--muted); }
+  ol li { margin: 4px 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<aside>
+  <div class="logo">STAL<span>ZONE</span> Wrapper<small data-t="tagline"></small></div>
+  <nav>
+    <button data-tab="home" class="active">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg>
+      <span data-t="tab.home"></span></button>
+    <button data-tab="profiles">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+      <span data-t="tab.profiles"></span></button>
+    <button data-tab="log">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7"/></svg>
+      <span data-t="tab.log"></span></button>
+    <button data-tab="settings">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
+      <span data-t="tab.settings"></span></button>
+  </nav>
+  <div class="side-foot">v1.0.0</div>
+</aside>
+
+<main>
+  <section id="home">
+    <h1 data-t="home.title"></h1>
+    <div class="sub" data-t="home.sub"></div>
+    <div class="banner" id="adminBanner" hidden>
+      <div class="grow" data-t="admin.need"></div>
+      <button class="btn primary" onclick="doElevate()" data-t="admin.restart"></button>
+    </div>
+    <div class="banner" id="memBanner" hidden><div data-t="mem.low"></div></div>
+    <div class="stats">
+      <div class="stat"><span data-t="stat.status"></span><b id="statStatus">—</b></div>
+      <div class="stat"><span data-t="stat.profile"></span><b id="statProfile">—</b></div>
+      <div class="stat"><span data-t="stat.system"></span><b id="statSystem">—</b></div>
+    </div>
+    <div class="card">
+      <h2 data-t="install.title"></h2>
+      <div class="row">
+        <input type="text" id="javaPath" class="grow" data-tp="install.placeholder">
+        <button class="btn" onclick="browse()" data-t="install.browse"></button>
+        <button class="btn primary" onclick="doInstall()" data-t="install.btn"></button>
+      </div>
+      <details><summary data-t="install.howto"></summary>
+        <ol><li data-t="howto.1"></li><li data-t="howto.2"></li><li data-t="howto.3"></li></ol>
+      </details>
+    </div>
+    <div class="card">
+      <h2 data-t="targets.title"></h2>
+      <div id="targets"></div>
+    </div>
+  </section>
+
+  <section id="profiles" hidden>
+    <h1 data-t="profiles.title"></h1>
+    <div class="sub" data-t="profiles.sub"></div>
+    <div class="row" style="margin-bottom:16px">
+      <button class="btn primary" onclick="doGenerate()" data-t="profiles.generate"></button>
+      <button class="btn" onclick="openFolder('configs')" data-t="profiles.folder"></button>
+    </div>
+    <div class="profiles" id="profileList"></div>
+  </section>
+
+  <section id="log" hidden>
+    <h1 data-t="log.title"></h1>
+    <div class="sub" data-t="log.sub"></div>
+    <div class="card">
+      <div class="row"><div class="grow"></div><button class="btn" onclick="loadLog()" data-t="log.refresh"></button></div>
+      <pre id="logText"></pre>
+    </div>
+  </section>
+
+  <section id="settings" hidden>
+    <h1 data-t="settings.title"></h1>
+    <div class="sub"></div>
+    <div class="card">
+      <h2 data-t="settings.lang"></h2>
+      <div class="seg" id="langSeg">
+        <button data-lang="ru">Русский</button><button data-lang="en">English</button>
+      </div>
+    </div>
+    <div class="card">
+      <h2 data-t="settings.folder"></h2>
+      <div class="row"><div class="path grow" id="dirPath"></div>
+        <button class="btn" onclick="openFolder('')" data-t="settings.open"></button></div>
+    </div>
+  </section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+const I18N = {
+  ru: {
+    tagline: "Оптимизация JVM", "tab.home": "Главная", "tab.profiles": "Профили", "tab.log": "Журнал", "tab.settings": "Настройки",
+    "home.title": "Главная", "home.sub": "Wrapper подставляет оптимизированные флаги Java при каждом запуске игры.",
+    "admin.need": "Для установки и удаления hook нужны права администратора.", "admin.restart": "Перезапустить от администратора",
+    "mem.low": "Меньше 8 GB RAM: включите файл подкачки, чтобы избежать зависаний.",
+    "stat.status": "Статус", "stat.profile": "Профиль", "stat.system": "Система",
+    "status.on": "Активен", "status.off": "Не установлен", "unset": "Не выбран",
+    "install.title": "Установка", "install.placeholder": "C:\\...\\Stalzone\\...\\bin\\javaw.exe",
+    "install.browse": "Обзор…", "install.btn": "Установить", "install.howto": "Где найти java.exe игры?",
+    "howto.1": "Запустите игру.", "howto.2": "Откройте Диспетчер задач → «Подробности», найдите java.exe или javaw.exe.",
+    "howto.3": "ПКМ → «Открыть расположение файла» и укажите этот файл здесь.",
+    "targets.title": "Установленные hook", "targets.empty": "Пока ничего не установлено.", "targets.remove": "Удалить",
+    "badge.on": "вкл", "badge.off": "выкл",
+    "profiles.title": "Профили", "profiles.sub": "Выберите профиль — он применится при следующем запуске игры.",
+    "profiles.generate": "Пересоздать под мой ПК", "profiles.folder": "Открыть папку configs",
+    "profiles.empty": "Профилей нет. Нажмите «Пересоздать под мой ПК».", "profiles.flags": "Флаги JVM",
+    "profiles.heap": "Память: %s GB", "profiles.custom": "Пользовательский профиль",
+    "desc.low": "Для слабых ПК и ноутбуков.", "desc.balanced": "Рекомендуется для большинства систем.", "desc.high": "Больше памяти, короче паузы GC.",
+    "log.title": "Журнал", "log.sub": "Последний запуск игры через wrapper.", "log.refresh": "Обновить", "log.empty": "Игра ещё не запускалась через wrapper.",
+    "settings.title": "Настройки", "settings.lang": "Язык", "settings.folder": "Папка wrapper", "settings.open": "Открыть",
+    "ok.installed": "Hook установлен. Можно запускать игру.", "ok.removed": "Hook удалён.", "ok.generated": "Профили пересозданы.", "ok.selected": "Выбран профиль: %s",
+    "err.need_admin": "Нужны права администратора.", "err.not_found": "Файл не найден.", "err.empty": "Укажите путь к java.exe.", "err": "Ошибка: %s",
+    "pick.title": "Выберите java.exe или javaw.exe игры"
+  },
+  en: {
+    tagline: "JVM optimization", "tab.home": "Home", "tab.profiles": "Profiles", "tab.log": "Log", "tab.settings": "Settings",
+    "home.title": "Home", "home.sub": "The wrapper applies optimized Java flags every time the game starts.",
+    "admin.need": "Administrator rights are required to install or remove the hook.", "admin.restart": "Restart as administrator",
+    "mem.low": "Less than 8 GB RAM: enable the page file to avoid freezes.",
+    "stat.status": "Status", "stat.profile": "Profile", "stat.system": "System",
+    "status.on": "Active", "status.off": "Not installed", "unset": "Not set",
+    "install.title": "Install", "install.placeholder": "C:\\...\\Stalzone\\...\\bin\\javaw.exe",
+    "install.browse": "Browse…", "install.btn": "Install", "install.howto": "Where is the game's java.exe?",
+    "howto.1": "Start the game.", "howto.2": "Open Task Manager → Details and find java.exe or javaw.exe.",
+    "howto.3": "Right-click → Open file location and select that file here.",
+    "targets.title": "Installed hooks", "targets.empty": "Nothing installed yet.", "targets.remove": "Remove",
+    "badge.on": "on", "badge.off": "off",
+    "profiles.title": "Profiles", "profiles.sub": "Pick a profile — it applies on the next game launch.",
+    "profiles.generate": "Regenerate for my PC", "profiles.folder": "Open configs folder",
+    "profiles.empty": "No profiles. Click “Regenerate for my PC”.", "profiles.flags": "JVM flags",
+    "profiles.heap": "Memory: %s GB", "profiles.custom": "Custom profile",
+    "desc.low": "For low-end PCs and laptops.", "desc.balanced": "Recommended for most systems.", "desc.high": "More memory, shorter GC pauses.",
+    "log.title": "Log", "log.sub": "Last game launch through the wrapper.", "log.refresh": "Refresh", "log.empty": "The game has not been launched through the wrapper yet.",
+    "settings.title": "Settings", "settings.lang": "Language", "settings.folder": "Wrapper folder", "settings.open": "Open",
+    "ok.installed": "Hook installed. You can start the game.", "ok.removed": "Hook removed.", "ok.generated": "Profiles regenerated.", "ok.selected": "Selected profile: %s",
+    "err.need_admin": "Administrator rights required.", "err.not_found": "File not found.", "err.empty": "Enter the path to java.exe.", "err": "Error: %s",
+    "pick.title": "Select the game's java.exe or javaw.exe"
+  }
+};
+let lang = "ru", st = null;
+const $ = s => document.querySelector(s);
+const t = (k, a) => (I18N[lang][k] ?? k).replace("%s", a ?? "");
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;"}[c]));
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-t]").forEach(e => e.textContent = t(e.dataset.t));
+  document.querySelectorAll("[data-tp]").forEach(e => e.placeholder = t(e.dataset.tp));
+  document.querySelectorAll("#langSeg button").forEach(b => b.classList.toggle("active", b.dataset.lang === lang));
+}
+
+let toastTimer;
+function toast(msg, err) {
+  const el = $("#toast");
+  el.textContent = msg; el.className = "toast show" + (err ? " err" : "");
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => el.className = "toast", 3200);
+}
+function fail(e) {
+  const m = String(e && e.message || e);
+  const key = "err." + m;
+  if (m === "need_admin") $("#adminBanner").hidden = false;
+  toast(I18N[lang][key] ? t(key) : t("err", m), true);
+}
+
+async function refresh() {
+  st = await window.getState();
+  if (st.language && st.language !== lang) { lang = st.language; applyLang(); }
+  $("#adminBanner").hidden = st.admin;
+  $("#memBanner").hidden = st.ram >= 8;
+  const active = st.targets.some(x => x.installed);
+  $("#statStatus").textContent = active ? t("status.on") : t("status.off");
+  $("#statStatus").style.color = active ? "var(--ok)" : "var(--bad)";
+  $("#statProfile").textContent = st.profile || t("unset");
+  $("#statSystem").textContent = `${st.ram} GB · ${st.cpus} CPU`;
+  $("#dirPath").textContent = st.dir;
+
+  $("#targets").innerHTML = st.targets.length ? st.targets.map((x, i) => `
+    <div class="row target">
+      <span class="badge ${x.installed ? "on" : "off"}">${t(x.installed ? "badge.on" : "badge.off")}</span>
+      <div class="path grow" title="${esc(x.path)}">${esc(x.path)}</div>
+      <button class="btn danger" onclick="doUninstall(${i})">${t("targets.remove")}</button>
+    </div>`).join("") : `<div class="empty">${t("targets.empty")}</div>`;
+
+  $("#profileList").innerHTML = st.profiles.length ? st.profiles.map((p, i) => `
+    <div class="profile ${p.name === st.profile ? "sel" : ""}" onclick="pick(${i})">
+      <h3>${esc(p.name)}</h3>
+      <div class="heap">${p.heapGB ? t("profiles.heap", p.heapGB) : "&nbsp;"}</div>
+      <p>${I18N[lang]["desc." + p.name] ? t("desc." + p.name) : t("profiles.custom")}</p>
+      <details onclick="event.stopPropagation()"><summary>${t("profiles.flags")}</summary><pre>${esc(p.flags.join("\n"))}</pre></details>
+    </div>`).join("") : `<div class="empty">${t("profiles.empty")}</div>`;
+}
+
+async function browse() {
+  const p = await window.pickJava(t("pick.title"));
+  if (p) $("#javaPath").value = p;
+}
+async function doInstall() {
+  const p = $("#javaPath").value.trim();
+  if (!p) return toast(t("err.empty"), true);
+  try { await window.install(p); $("#javaPath").value = ""; toast(t("ok.installed")); } catch (e) { fail(e); }
+  refresh();
+}
+async function doUninstall(i) {
+  try { await window.uninstall(st.targets[i].path); toast(t("ok.removed")); } catch (e) { fail(e); }
+  refresh();
+}
+async function doGenerate() {
+  try { await window.generate(); toast(t("ok.generated")); } catch (e) { fail(e); }
+  refresh();
+}
+async function pick(i) {
+  const name = st.profiles[i].name;
+  try { await window.selectProfile(name); toast(t("ok.selected", name)); } catch (e) { fail(e); }
+  refresh();
+}
+async function doElevate() { try { await window.elevate(); } catch (e) { fail(e); } }
+function openFolder(sub) { window.openFolder(sub); }
+async function loadLog() {
+  const text = await window.readLog();
+  $("#logText").textContent = text || t("log.empty");
+}
+
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x => x.classList.toggle("active", x === b));
+  document.querySelectorAll("main section").forEach(s => s.hidden = s.id !== b.dataset.tab);
+  if (b.dataset.tab === "log") loadLog();
+});
+document.querySelectorAll("#langSeg button").forEach(b => b.onclick = async () => {
+  lang = b.dataset.lang; applyLang(); await window.setLanguage(lang); refresh();
+});
+document.addEventListener("contextmenu", e => { if (!e.target.closest("input, pre, .path")) e.preventDefault(); });
+
+applyLang();
+refresh().catch(fail);
+</script>
+</body>
+</html>

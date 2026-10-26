@@ -6,7 +6,7 @@ package ifeo
 
 import (
 	"fmt"
-	"os/exec"
+	"github.com/grinthas/stalzone-wrapper/internal/sys"
 	"path/filepath"
 	"strings"
 )
@@ -17,7 +17,7 @@ const (
 )
 
 func reg(args ...string) (string, error) {
-	out, err := exec.Command("reg.exe", args...).CombinedOutput()
+	out, err := sys.Command("reg.exe", args...).CombinedOutput()
 	return string(out), err
 }
 

@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Test
+        run: |
+          test -z "$(gofmt -l .)"
+          GOOS=windows go vet ./...
+          go test ./internal/jvm/
+
+      - name: Build
+        env:
+          GOOS: windows
+          GOARCH: amd64
+        run: |
+          mkdir -p dist/StalzoneWrapper
+          go build -trimpath -ldflags="-s -w -H windowsgui" -o "dist/StalzoneWrapper/Stalzone Wrapper.exe" ./cmd/gui
+          go build -trimpath -ldflags="-s -w -H windowsgui" -o dist/StalzoneWrapper/service.exe ./cmd/service
+          cp README.md LICENSE dist/StalzoneWrapper/
+          cd dist && zip -r "StalzoneWrapper-${GITHUB_REF_NAME}-windows-x64.zip" StalzoneWrapper
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*.zip
+          generate_release_notes: true

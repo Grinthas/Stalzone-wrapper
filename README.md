@@ -44,3 +44,9 @@ Wrapper не изменяет файлы игры и не обходит её з
 ## Лицензия
 
 [MIT](LICENSE)
+
+## Релизы
+
+Готовые сборки — на странице [Releases](https://github.com/Grinthas/stalzone-wrapper/releases).
+Чтобы выпустить новую версию, создайте тег: `git tag v1.0.1 && git push origin v1.0.1` —
+GitHub Actions соберёт архив и опубликует релиз.

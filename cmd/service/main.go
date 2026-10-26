@@ -10,8 +10,10 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/grinthas/stalzone-wrapper/internal/config"
+	"github.com/grinthas/stalzone-wrapper/internal/hw"
 	"github.com/grinthas/stalzone-wrapper/internal/jvm"
 	"github.com/grinthas/stalzone-wrapper/internal/sys"
 	"github.com/grinthas/stalzone-wrapper/internal/tunnel"
@@ -31,6 +33,9 @@ func main() {
 
 	target, args := os.Args[1], os.Args[2:]
 	s := config.LoadSettings()
+	if s.Profile == "auto" {
+		s = syncAutoProfile(s)
+	}
 	flags := tunnel.Flags(s.Servers)
 	if p, err := config.LoadProfile(s.Profile); err != nil {
 		log.Printf("[config] профиль %q не загружен (%v), флаги JVM не меняются", s.Profile, err)
@@ -73,4 +78,30 @@ func main() {
 		tweaks.SetPowerScheme(restorePower)
 	}
 	os.Exit(code)
+}
+
+// syncAutoProfile пересоздаёт профиль auto, если с момента его создания
+// изменился объём памяти или число потоков процессора.
+func syncAutoProfile(s config.Settings) config.Settings {
+	ram, threads := sys.TotalRAMGB(), runtime.NumCPU()
+	if s.AutoHW != nil && s.AutoHW.RAMGB == ram && s.AutoHW.Threads == threads {
+		return s
+	}
+	h := hw.Detect() // число физических ядер — только через PowerShell, поэтому лишь при изменениях
+	stamp := config.HWStamp{RAMGB: ram, Cores: h.Cores, Threads: threads}
+	notes, err := config.SaveAutoProfile(stamp)
+	if err != nil {
+		log.Printf("[auto] не удалось обновить профиль: %v", err)
+		return s
+	}
+	if s.AutoHW != nil {
+		log.Printf("[auto] железо изменилось (%d→%d ГБ, %d→%d потоков), профиль auto пересоздан",
+			s.AutoHW.RAMGB, stamp.RAMGB, s.AutoHW.Threads, stamp.Threads)
+	} else {
+		log.Printf("[auto] профиль auto привязан к железу: %d ГБ, %d ядер / %d потоков", stamp.RAMGB, stamp.Cores, stamp.Threads)
+	}
+	for _, n := range notes {
+		log.Printf("[auto] %s", n)
+	}
+	return config.LoadSettings()
 }

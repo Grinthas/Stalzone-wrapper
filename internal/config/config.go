@@ -21,6 +21,15 @@ type Settings struct {
 	// Servers — выбранные узлы подключения: регион → host:port. Пусто — выбор игры.
 	Servers map[string]string `json:"servers,omitempty"`
 	Tweaks  Tweaks            `json:"tweaks"`
+	// AutoHW — железо, под которое создан профиль auto; при изменении профиль пересоздаётся.
+	AutoHW *HWStamp `json:"auto_hw,omitempty"`
+}
+
+// HWStamp — характеристики, от которых зависит профиль auto.
+type HWStamp struct {
+	RAMGB   int `json:"ram_gb"`
+	Cores   int `json:"cores"`
+	Threads int `json:"threads"`
 }
 
 // Tweaks — системные настройки на время игры.
@@ -275,4 +284,16 @@ func AutoProfile(ramGB, cores, threads int) (Profile, []string) {
 	}
 	notes = append(notes, fmt.Sprintf("Куча %d ГБ, потоков GC %d/%d, цель паузы %d мс.", heap, parallel, conc, p.MaxGCPauseMillis))
 	return p, notes
+}
+
+// SaveAutoProfile создаёт профиль auto под железо, делает его активным и запоминает железо.
+func SaveAutoProfile(hw HWStamp) ([]string, error) {
+	p, notes := AutoProfile(hw.RAMGB, hw.Cores, hw.Threads)
+	if err := SaveProfile("auto", p); err != nil {
+		return nil, err
+	}
+	s := LoadSettings()
+	s.Profile = "auto"
+	s.AutoHW = &hw
+	return notes, SaveSettings(s)
 }

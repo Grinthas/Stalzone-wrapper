@@ -207,13 +207,8 @@ func main() {
 	w.Bind("hwInfo", hardware)
 	w.Bind("autoProfile", func() ([]string, error) {
 		h := hardware()
-		p, notes := config.AutoProfile(h.RAMGB, h.Cores, h.Threads)
-		if err := config.SaveProfile("auto", p); err != nil {
-			return nil, err
-		}
-		s := config.LoadSettings()
-		s.Profile = "auto"
-		return notes, config.SaveSettings(s)
+		// Те же источники, что и проверка в service.exe, чтобы сравнение было точным.
+		return config.SaveAutoProfile(config.HWStamp{RAMGB: sys.TotalRAMGB(), Cores: h.Cores, Threads: runtime.NumCPU()})
 	})
 	w.Bind("getTweaks", func() config.Tweaks { return config.LoadSettings().Tweaks })
 	w.Bind("setTweaks", func(t config.Tweaks) error {

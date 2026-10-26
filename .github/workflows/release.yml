@@ -3,6 +3,14 @@ name: Release
 on:
   push:
     tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Версия (например, v1.0.0)"
+        required: true
+
+env:
+  VERSION: ${{ inputs.version || github.ref_name }}
 
 permissions:
   contents: write
@@ -32,9 +40,11 @@ jobs:
           go build -trimpath -ldflags="-s -w -H windowsgui" -o "dist/StalzoneWrapper/Stalzone Wrapper.exe" ./cmd/gui
           go build -trimpath -ldflags="-s -w -H windowsgui" -o dist/StalzoneWrapper/service.exe ./cmd/service
           cp README.md LICENSE dist/StalzoneWrapper/
-          cd dist && zip -r "StalzoneWrapper-${GITHUB_REF_NAME}-windows-x64.zip" StalzoneWrapper
+          cd dist && zip -r "StalzoneWrapper-${VERSION}-windows-x64.zip" StalzoneWrapper
 
       - uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ env.VERSION }}
+          target_commitish: ${{ github.sha }}
           files: dist/*.zip
           generate_release_notes: true

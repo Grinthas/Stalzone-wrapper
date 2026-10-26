@@ -17,6 +17,26 @@ type Settings struct {
 	Targets  []string `json:"targets"`
 	Profile  string   `json:"profile"`
 	Language string   `json:"language"`
+	Memory   *Memory  `json:"memory,omitempty"`
+}
+
+// Memory — настройки очистки памяти (аналог Mem Reduct).
+type Memory struct {
+	WorkingSets  bool `json:"working_sets"`
+	StandbyList  bool `json:"standby_list"`
+	ModifiedList bool `json:"modified_list"`
+	FileCache    bool `json:"file_cache"`
+	// Auto — очищать автоматически, когда занято не меньше Threshold процентов RAM.
+	Auto      bool `json:"auto"`
+	Threshold int  `json:"threshold"`
+}
+
+// MemorySettings возвращает настройки памяти или значения по умолчанию.
+func (s Settings) MemorySettings() Memory {
+	if s.Memory != nil {
+		return *s.Memory
+	}
+	return Memory{WorkingSets: true, StandbyList: true, ModifiedList: true, FileCache: true, Threshold: 85}
 }
 
 // Profile — набор JVM-параметров. Нулевые значения означают «не задавать».

@@ -4,18 +4,21 @@ package main
 
 import (
 	_ "embed"
+	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
+	"time"
 	"unsafe"
 
 	"github.com/jchv/go-webview2"
 
 	"github.com/grinthas/stalzone-wrapper/internal/config"
 	"github.com/grinthas/stalzone-wrapper/internal/ifeo"
+	"github.com/grinthas/stalzone-wrapper/internal/memclean"
 	"github.com/grinthas/stalzone-wrapper/internal/sys"
 )
 
@@ -181,6 +184,44 @@ func main() {
 		return string(data)
 	})
 
+	w.Bind("memStats", memclean.Current)
+	w.Bind("memSettings", func() config.Memory { return config.LoadSettings().MemorySettings() })
+	w.Bind("setMemSettings", func(m config.Memory) error {
+		if m.Threshold < 50 || m.Threshold > 98 {
+			m.Threshold = 85
+		}
+		s := config.LoadSettings()
+		s.Memory = &m
+		return config.SaveSettings(s)
+	})
+	w.Bind("memClean", func() memclean.Result { return cleanMemory() })
+	go autoClean(w)
+
 	w.SetHtml(page)
 	w.Run()
+}
+
+func cleanMemory() memclean.Result {
+	s := config.LoadSettings()
+	m := s.MemorySettings()
+	return memclean.Clean(memclean.Options{
+		WorkingSets: m.WorkingSets, StandbyList: m.StandbyList,
+		ModifiedList: m.ModifiedList, FileCache: m.FileCache,
+	}, s.Targets) // игру не трогаем, чтобы не было подтормаживаний
+}
+
+// autoClean раз в 15 секунд проверяет загрузку памяти и чистит её при превышении порога,
+// не чаще раза в минуту. Работает, пока открыто окно программы.
+func autoClean(w webview2.WebView) {
+	var last time.Time
+	for range time.Tick(15 * time.Second) {
+		m := config.LoadSettings().MemorySettings()
+		if !m.Auto || time.Since(last) < time.Minute || memclean.Current().UsedPct < m.Threshold {
+			continue
+		}
+		last = time.Now()
+		r := cleanMemory()
+		data, _ := json.Marshal(r)
+		w.Dispatch(func() { w.Eval("window.onAutoClean && window.onAutoClean(" + string(data) + ")") })
+	}
 }

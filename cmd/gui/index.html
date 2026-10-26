@@ -79,6 +79,13 @@
   .toast.err { border-left-color: var(--bad); }
   ol { margin: 0; padding-left: 20px; color: var(--muted); }
   ol li { margin: 4px 0; }
+  .meter { height: 12px; background: var(--bg); border-radius: 99px; overflow: hidden; border: 1px solid var(--line); }
+  .meter > div { height: 100%; background: var(--ok); transition: width .4s, background .4s; }
+  .big { font-size: 34px; font-weight: 700; }
+  .opt { display: flex; gap: 12px; align-items: flex-start; padding: 8px 0; cursor: pointer; }
+  .opt input { margin-top: 3px; accent-color: var(--accent); width: 16px; height: 16px; }
+  .opt small { display: block; color: var(--muted); }
+  input[type=range] { flex: 1; accent-color: var(--accent); }
   [hidden] { display: none !important; }
 </style>
 </head>
@@ -92,6 +99,9 @@
     <button data-tab="profiles">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
       <span data-t="tab.profiles"></span></button>
+    <button data-tab="memory">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="4" y="7" width="16" height="10" rx="1"/><path d="M8 7V4M12 7V4M16 7V4M8 20v-3M12 20v-3M16 20v-3"/></svg>
+      <span data-t="tab.memory"></span></button>
     <button data-tab="log">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h7"/></svg>
       <span data-t="tab.log"></span></button>
@@ -99,7 +109,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
       <span data-t="tab.settings"></span></button>
   </nav>
-  <div class="side-foot">v1.0.0</div>
+  <div class="side-foot">v1.1.0</div>
 </aside>
 
 <main>
@@ -141,6 +151,38 @@
       <button class="btn" onclick="openFolder('configs')" data-t="profiles.folder"></button>
     </div>
     <div class="profiles" id="profileList"></div>
+  </section>
+
+  <section id="memory" hidden>
+    <h1 data-t="mem.title"></h1>
+    <div class="sub" data-t="mem.sub"></div>
+    <div class="banner" id="memAdmin" hidden>
+      <div class="grow" data-t="mem.admin"></div>
+      <button class="btn primary" onclick="doElevate()" data-t="admin.restart"></button>
+    </div>
+    <div class="card">
+      <div class="row">
+        <div class="grow">
+          <div class="big" id="memPct">—</div>
+          <div class="sub" style="margin:0" id="memText"></div>
+        </div>
+        <button class="btn primary" id="memBtn" onclick="doMemClean()" data-t="mem.clean"></button>
+      </div>
+      <div class="meter" style="margin-top:14px"><div id="memBar" style="width:0"></div></div>
+      <div class="sub" style="margin:10px 0 0" id="memResult"></div>
+    </div>
+    <div class="card">
+      <h2 data-t="mem.what"></h2>
+      <label class="opt"><input type="checkbox" id="mWorking"><div><span data-t="mem.ws"></span><small data-t="mem.ws.d"></small></div></label>
+      <label class="opt"><input type="checkbox" id="mStandby"><div><span data-t="mem.sb"></span><small data-t="mem.sb.d"></small></div></label>
+      <label class="opt"><input type="checkbox" id="mModified"><div><span data-t="mem.mod"></span><small data-t="mem.mod.d"></small></div></label>
+      <label class="opt"><input type="checkbox" id="mCache"><div><span data-t="mem.fc"></span><small data-t="mem.fc.d"></small></div></label>
+    </div>
+    <div class="card">
+      <h2 data-t="mem.auto"></h2>
+      <label class="opt"><input type="checkbox" id="mAuto"><div><span data-t="mem.auto.on"></span><small data-t="mem.auto.d"></small></div></label>
+      <div class="row"><span data-t="mem.threshold"></span><input type="range" id="mThreshold" min="50" max="98" step="1"><b id="mThresholdVal"></b></div>
+    </div>
   </section>
 
   <section id="log" hidden>
@@ -194,7 +236,16 @@ const I18N = {
     "settings.title": "Настройки", "settings.lang": "Язык", "settings.folder": "Папка wrapper", "settings.open": "Открыть",
     "ok.installed": "Hook установлен. Можно запускать игру.", "ok.removed": "Hook удалён.", "ok.generated": "Профили пересозданы.", "ok.selected": "Выбран профиль: %s",
     "err.need_admin": "Нужны права администратора.", "err.not_found": "Файл не найден.", "err.empty": "Укажите путь к java.exe.", "err": "Ошибка: %s",
-    "pick.title": "Выберите java.exe или javaw.exe игры"
+    "pick.title": "Выберите java.exe или javaw.exe игры",
+    "tab.memory": "Память", "mem.title": "Очистка памяти", "mem.sub": "Освобождает оперативную память, как Mem Reduct. Процессы игры не затрагиваются.",
+    "mem.admin": "Без прав администратора доступно только урезание рабочих наборов.", "mem.clean": "Очистить сейчас", "mem.cleaning": "Очистка…",
+    "mem.used": "Занято %s из %t GB, свободно %f GB", "mem.freed": "Освобождено %s MB", "mem.auto.done": "Автоочистка: освобождено %s MB",
+    "mem.what": "Что очищать", "mem.ws": "Рабочие наборы процессов", "mem.ws.d": "Выгружает неиспользуемую память программ в файл подкачки (кроме игры).",
+    "mem.sb": "Список ожидания (standby)", "mem.sb.d": "Кэш недавно использованных данных — самый большой выигрыш.",
+    "mem.mod": "Изменённые страницы", "mem.mod.d": "Записывает отложенные изменения на диск и освобождает их.",
+    "mem.fc": "Системный файловый кэш", "mem.fc.d": "Сбрасывает кэш файлов Windows.",
+    "mem.auto": "Автоочистка", "mem.auto.on": "Очищать автоматически", "mem.auto.d": "Проверка каждые 15 секунд, пока открыто окно программы; не чаще раза в минуту.",
+    "mem.threshold": "Когда занято больше"
   },
   en: {
     tagline: "JVM optimization", "tab.home": "Home", "tab.profiles": "Profiles", "tab.log": "Log", "tab.settings": "Settings",
@@ -218,7 +269,16 @@ const I18N = {
     "settings.title": "Settings", "settings.lang": "Language", "settings.folder": "Wrapper folder", "settings.open": "Open",
     "ok.installed": "Hook installed. You can start the game.", "ok.removed": "Hook removed.", "ok.generated": "Profiles regenerated.", "ok.selected": "Selected profile: %s",
     "err.need_admin": "Administrator rights required.", "err.not_found": "File not found.", "err.empty": "Enter the path to java.exe.", "err": "Error: %s",
-    "pick.title": "Select the game's java.exe or javaw.exe"
+    "pick.title": "Select the game's java.exe or javaw.exe",
+    "tab.memory": "Memory", "mem.title": "Memory cleaner", "mem.sub": "Frees RAM like Mem Reduct. Game processes are left untouched.",
+    "mem.admin": "Without administrator rights only working set trimming is available.", "mem.clean": "Clean now", "mem.cleaning": "Cleaning…",
+    "mem.used": "Used %s of %t GB, free %f GB", "mem.freed": "Freed %s MB", "mem.auto.done": "Auto clean: freed %s MB",
+    "mem.what": "What to clean", "mem.ws": "Process working sets", "mem.ws.d": "Pages out unused memory of programs (except the game).",
+    "mem.sb": "Standby list", "mem.sb.d": "Cache of recently used data — the biggest gain.",
+    "mem.mod": "Modified page list", "mem.mod.d": "Writes pending changes to disk and frees them.",
+    "mem.fc": "System file cache", "mem.fc.d": "Flushes the Windows file cache.",
+    "mem.auto": "Auto clean", "mem.auto.on": "Clean automatically", "mem.auto.d": "Checked every 15 seconds while the program window is open; at most once a minute.",
+    "mem.threshold": "When usage exceeds"
   }
 };
 let lang = "ru", st = null;
@@ -304,10 +364,54 @@ async function loadLog() {
   $("#logText").textContent = text || t("log.empty");
 }
 
+const gb = mb => (mb / 1024).toFixed(1);
+let memTimer = null;
+async function loadMem() {
+  const m = await window.memStats();
+  $("#memPct").textContent = m.usedPct + "%";
+  $("#memText").textContent = t("mem.used", gb(m.totalMB - m.freeMB)).replace("%t", gb(m.totalMB)).replace("%f", gb(m.freeMB));
+  const bar = $("#memBar");
+  bar.style.width = m.usedPct + "%";
+  bar.style.background = m.usedPct >= 85 ? "var(--bad)" : m.usedPct >= 70 ? "var(--warn)" : "var(--ok)";
+}
+async function loadMemSettings() {
+  const s = await window.memSettings();
+  $("#mWorking").checked = s.working_sets; $("#mStandby").checked = s.standby_list;
+  $("#mModified").checked = s.modified_list; $("#mCache").checked = s.file_cache;
+  $("#mAuto").checked = s.auto; $("#mThreshold").value = s.threshold; $("#mThresholdVal").textContent = s.threshold + "%";
+  $("#memAdmin").hidden = !st || st.admin;
+}
+async function saveMem() {
+  $("#mThresholdVal").textContent = $("#mThreshold").value + "%";
+  try {
+    await window.setMemSettings({
+      working_sets: $("#mWorking").checked, standby_list: $("#mStandby").checked,
+      modified_list: $("#mModified").checked, file_cache: $("#mCache").checked,
+      auto: $("#mAuto").checked, threshold: +$("#mThreshold").value
+    });
+  } catch (e) { fail(e); }
+}
+["#mWorking", "#mStandby", "#mModified", "#mCache", "#mAuto", "#mThreshold"].forEach(id => $(id).addEventListener("change", saveMem));
+$("#mThreshold").addEventListener("input", () => $("#mThresholdVal").textContent = $("#mThreshold").value + "%");
+function showResult(r, key) {
+  $("#memResult").textContent = t(key, r.freedMB) + (r.errors && r.errors.length ? " · " + r.errors.join("; ") : "");
+}
+async function doMemClean() {
+  const btn = $("#memBtn");
+  btn.disabled = true; btn.textContent = t("mem.cleaning");
+  try { const r = await window.memClean(); showResult(r, "mem.freed"); toast(t("mem.freed", r.freedMB), r.errors && r.errors.length); }
+  catch (e) { fail(e); }
+  btn.disabled = false; btn.textContent = t("mem.clean");
+  loadMem();
+}
+window.onAutoClean = r => { showResult(r, "mem.auto.done"); toast(t("mem.auto.done", r.freedMB)); loadMem(); };
+
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x => x.classList.toggle("active", x === b));
   document.querySelectorAll("main section").forEach(s => s.hidden = s.id !== b.dataset.tab);
   if (b.dataset.tab === "log") loadLog();
+  clearInterval(memTimer);
+  if (b.dataset.tab === "memory") { loadMem(); loadMemSettings(); memTimer = setInterval(loadMem, 2000); }
 });
 document.querySelectorAll("#langSeg button").forEach(b => b.onclick = async () => {
   lang = b.dataset.lang; applyLang(); await window.setLanguage(lang); refresh();
